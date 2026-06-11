@@ -3,7 +3,13 @@ import { BAREHAND_COMBO } from "../common.ts";
 
 export const definition = {
   id: "silver_knight",
-  visualProfile: { renderer: "script", scale: 1, groundOffset: 0 },
+  visualProfile: {
+    renderer: "script",
+    scale: 1,
+    groundOffset: 0,
+    proportions: { shoulderWidth: 1.08, torsoHeight: 1.02, torsoDepth: 1.08, legLength: .94, headScale: 1.02 },
+    collision: { halfWidth: 48, height: 96 }
+  },
   ui: {
     name: "Silver Knight",
     type: "近距離・バランス型",

@@ -38,6 +38,18 @@ test("攻撃モーションはgameRootのサーバー座標を変更しない", 
     snapshotFrame: 18
   }, 1 / 60, 1);
   assert.equal(view.root.position.x, 3);
-  assert.notEqual(view.visualRoot.position.x, view.root.position.x);
+  assert.notEqual(view.visualRoot.position.z, 0);
   view.dispose();
+});
+
+test("キャラクター別の判定表示を切り替えられる", () => {
+  const silver = new ProceduralCharacterView("silver_knight");
+  const saladin = new ProceduralCharacterView("saladin");
+  silver.setCollisionDebug(true);
+  saladin.setCollisionDebug(true);
+  assert.equal(silver.hurtboxView.visible, true);
+  assert.equal(saladin.hurtboxView.visible, true);
+  assert.ok(silver.profile.collision.halfWidth > saladin.profile.collision.halfWidth);
+  silver.dispose();
+  saladin.dispose();
 });

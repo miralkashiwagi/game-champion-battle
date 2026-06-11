@@ -45,8 +45,8 @@ export const visual = {
       const rightBlade = makeBlade(.9, 0xd6d9d7, 0xc99a3d, true);
       const leftBlade = makeBlade(.9, 0xd6d9d7, 0xc99a3d, true);
       attachments.push(
-        { socket: "rightHandGrip", object: rightBlade, position: [.02, .1, .14], rotation: [-.05, 0, -.38] },
-        { socket: "leftHandGrip", object: leftBlade, position: [-.02, .1, .14], rotation: [-.05, 0, .38] }
+        { socket: "rightHandGrip", object: rightBlade, position: [.02, .1, .14], rotation: [-.05, 0, -.38], scale: 2 },
+        { socket: "leftHandGrip", object: leftBlade, position: [-.02, .1, .14], rotation: [-.05, 0, .38], scale: 2 }
       );
     }
     markShadows(attachments);

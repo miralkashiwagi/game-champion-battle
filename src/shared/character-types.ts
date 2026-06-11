@@ -27,6 +27,17 @@ export interface CharacterVisualProfile {
   renderer: "script";
   scale: number;
   groundOffset: number;
+  proportions: {
+    shoulderWidth: number;
+    torsoHeight: number;
+    torsoDepth: number;
+    legLength: number;
+    headScale: number;
+  };
+  collision: {
+    halfWidth: number;
+    height: number;
+  };
 }
 
 export interface CharacterRig<Node = unknown> {

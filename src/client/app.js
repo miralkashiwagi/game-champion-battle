@@ -71,6 +71,11 @@ const keyMap = {
 };
 
 window.addEventListener("keydown", (event) => {
+  if (event.code === "KeyH" && !event.repeat) {
+    event.preventDefault();
+    scene.toggleCollisionDebug();
+    return;
+  }
   if (!keyMap[event.code]) return;
   event.preventDefault();
   const changed = !state.keys.has(event.code);
@@ -458,7 +463,7 @@ function renderBattleHud() {
     </div>
     <div class="hud-bottom">
       <div class="equipment-bar">${equipmentHud(local)}</div>
-      <div class="control-box"><div><b>移動</b> W A S D</div><div><b>攻撃</b> J　<b>ガード</b> K</div><div><b>スキル</b> 1 2 3 4　<b>拾得</b> E</div></div>
+      <div class="control-box"><div><b>移動</b> W A S D</div><div><b>攻撃</b> J　<b>ガード</b> K</div><div><b>スキル</b> 1 2 3 4　<b>拾得</b> E　<b>判定</b> H</div></div>
     </div>`;
 }
 

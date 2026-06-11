@@ -10,7 +10,6 @@ import {
   OPPONENT_PICKUP_LOCK_FRAMES,
   OWNER_PICKUP_LOCK_FRAMES,
   PICKUP_RADIUS,
-  PLAYER_WIDTH,
   STAGE_WIDTH,
   TICK_MS
 } from "../shared/constants.ts";
@@ -222,7 +221,8 @@ export class MatchSimulation {
     }
 
     player.velocity.y += GRAVITY;
-    player.position.x = clamp(player.position.x + player.velocity.x, PLAYER_WIDTH, STAGE_WIDTH - PLAYER_WIDTH);
+    const halfWidth = CHARACTER_REGISTRY[player.characterId].definition.visualProfile.collision.halfWidth;
+    player.position.x = clamp(player.position.x + player.velocity.x, halfWidth, STAGE_WIDTH - halfWidth);
     player.position.y += player.velocity.y;
     if (player.position.y >= GROUND_Y) {
       player.position.y = GROUND_Y;
@@ -238,7 +238,8 @@ export class MatchSimulation {
       const total = player.activeAttack.spec.startupFrames + player.activeAttack.spec.activeFrames + player.activeAttack.spec.recoveryFrames;
       const move = player.activeAttack.spec.movement ?? 0;
       if (move && player.attackTimer <= player.activeAttack.spec.startupFrames + player.activeAttack.spec.activeFrames) {
-        player.position.x = clamp(player.position.x + (move / Math.max(1, player.activeAttack.spec.activeFrames + player.activeAttack.spec.startupFrames)) * player.facing, PLAYER_WIDTH, STAGE_WIDTH - PLAYER_WIDTH);
+        const halfWidth = CHARACTER_REGISTRY[player.characterId].definition.visualProfile.collision.halfWidth;
+        player.position.x = clamp(player.position.x + (move / Math.max(1, player.activeAttack.spec.activeFrames + player.activeAttack.spec.startupFrames)) * player.facing, halfWidth, STAGE_WIDTH - halfWidth);
       }
       if (player.attackTimer >= total) {
         player.activeAttack = null;
@@ -271,8 +272,10 @@ export class MatchSimulation {
     attacker.state = localTimer < active.spec.startupFrames ? "AttackStartup" : isActive ? "AttackActive" : "AttackRecovery";
     if (!isActive) return;
     if (defender.invulnerableUntilFrame >= this.frame || defender.state === "Dead") return;
-    if (Math.abs(attacker.position.x - defender.position.x) > active.spec.range) return;
-    if (Math.abs(attacker.position.y - defender.position.y) > 120) return;
+    const defenderCollision = CHARACTER_REGISTRY[defender.characterId].definition.visualProfile.collision;
+    const horizontalReach = active.spec.range + defenderCollision.halfWidth;
+    if (Math.abs(attacker.position.x - defender.position.x) > horizontalReach) return;
+    if (Math.abs(attacker.position.y - defender.position.y) > defenderCollision.height) return;
 
     const blocked = this.isBlocking(defender, attacker) && !active.spec.guardPierce;
     active.hitDone = true;

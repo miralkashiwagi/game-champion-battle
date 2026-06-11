@@ -42,7 +42,7 @@ export const visual = {
       );
     } else {
       const sword = makeBlade(1.34, p.metal, 0xc7a553, false);
-      attachments.push({ socket: "rightHandGrip", object: sword, position: [.02, .08, .14], rotation: [-.05, 0, -.22] });
+      attachments.push({ socket: "rightHandGrip", object: sword, position: [.02, .08, .14], rotation: [-.05, 0, -.22], scale: 2 });
     }
     markShadows(attachments);
     return { attachments, motions: { drop: "item_drop", pickup: "item_pickup" } };

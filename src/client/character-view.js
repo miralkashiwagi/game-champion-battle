@@ -38,6 +38,7 @@ export class ProceduralCharacterView {
 
   build() {
     const p = this.palette;
+    const shape = this.profile.proportions;
     const cloth = material(p.cloth, .68);
     const clothDark = material(p.clothDark, .72);
     const steel = material(p.metal, .84, .34);
@@ -46,28 +47,32 @@ export class ProceduralCharacterView {
 
     const hips = new THREE.Group();
     const chest = new THREE.Group();
-    chest.position.y = 1.18;
+    chest.position.y = 1.18 * shape.legLength;
     hips.add(chest);
     this.visualRoot.add(hips);
-    const torso = mesh(new THREE.CylinderGeometry(.42, .52, .82, 6), cloth);
-    torso.scale.z = .7;
+    const torso = mesh(new THREE.CylinderGeometry(.42 * shape.shoulderWidth, .52 * shape.shoulderWidth, .82 * shape.torsoHeight, 6), cloth);
+    torso.scale.z = .7 * shape.torsoDepth;
     chest.add(torso);
     const belt = mesh(new THREE.BoxGeometry(.82, .12, .48), leather);
     belt.position.y = -.4;
     chest.add(belt);
 
     const head = new THREE.Group();
-    head.position.y = .72;
+    head.position.y = .72 * shape.torsoHeight;
+    head.scale.setScalar(shape.headScale);
     chest.add(head);
-    const leftArm = makeLimb(steel, clothDark, -1);
-    const rightArm = makeLimb(steel, clothDark, 1);
-    leftArm.position.set(-.5, .25, 0);
-    rightArm.position.set(.5, .25, 0);
+    const agile = this.characterId === "saladin";
+    const leftArm = makeLimb(agile ? cloth : steel, clothDark, -1, agile ? .92 : 1);
+    const rightArm = makeLimb(agile ? cloth : steel, clothDark, 1, agile ? .92 : 1);
+    leftArm.position.set(-.5 * shape.shoulderWidth, .25, 0);
+    rightArm.position.set(.5 * shape.shoulderWidth, .25, 0);
     chest.add(leftArm, rightArm);
-    const leftLeg = makeLeg(darkSteel, clothDark);
-    const rightLeg = makeLeg(darkSteel, clothDark);
+    const leftLeg = makeLeg(darkSteel, clothDark, agile ? .86 : 1);
+    const rightLeg = makeLeg(darkSteel, clothDark, agile ? .86 : 1);
     leftLeg.position.set(-.23, -.38, 0);
     rightLeg.position.set(.23, -.38, 0);
+    leftLeg.scale.y = shape.legLength;
+    rightLeg.scale.y = shape.legLength;
     chest.add(leftLeg, rightLeg);
 
     const sockets = {
@@ -88,12 +93,56 @@ export class ProceduralCharacterView {
     }, sockets);
     this.visualRoot.scale.setScalar(this.profile.scale);
     this.visualRoot.position.y = this.profile.groundOffset;
-    this.motionPlayer = new ScriptMotionPlayer(this.rig, this.visualRoot, collectAttackSpecs());
+    this.motionPlayer = new ScriptMotionPlayer(this.characterId, this.rig, this.visualRoot, collectAttackSpecs());
+    this.buildCollisionVisuals();
 
     const shadow = mesh(new THREE.CircleGeometry(.72, 24), new THREE.MeshBasicMaterial({ color: 0x05080b, transparent: true, opacity: .32, depthWrite: false }));
     shadow.rotation.x = -Math.PI / 2;
     shadow.position.y = .015;
     this.root.add(shadow);
+  }
+
+  buildCollisionVisuals() {
+    const collision = this.profile.collision;
+    const worldWidth = collision.halfWidth / 78;
+    const worldHeight = collision.height / 78;
+    const cyan = new THREE.MeshBasicMaterial({ color: 0x2de7ff, transparent: true, opacity: .2, depthWrite: false, depthTest: false, wireframe: false });
+    const orange = new THREE.MeshBasicMaterial({ color: 0xff8a28, transparent: true, opacity: .34, depthWrite: false, depthTest: false, side: THREE.DoubleSide });
+    this.hitboxMaterials = [orange];
+    this.hurtboxView = new THREE.Group();
+    this.hurtboxView.name = `${this.characterId}-hurtbox`;
+    const body = new THREE.Mesh(new THREE.CapsuleGeometry(worldWidth, Math.max(.25, worldHeight - worldWidth * 2), 5, 10), cyan);
+    body.position.y = worldHeight * .52;
+    const head = new THREE.Mesh(new THREE.SphereGeometry(worldWidth * .66, 10, 7), cyan.clone());
+    head.position.y = worldHeight * .94;
+    this.hurtboxView.add(body, head);
+    this.hurtboxView.renderOrder = 20;
+    this.hurtboxView.visible = false;
+    this.root.add(this.hurtboxView);
+
+    this.hitboxView = new THREE.Group();
+    this.hitboxView.name = `${this.characterId}-hitbox`;
+    const sweep = new THREE.Mesh(new THREE.TorusGeometry(.86, .075, 6, 24, Math.PI * 1.25), orange);
+    sweep.rotation.x = Math.PI / 2;
+    sweep.rotation.z = -.62;
+    sweep.position.set(0, 1.25, .5);
+    const thrustMaterial = orange.clone();
+    this.hitboxMaterials.push(thrustMaterial);
+    const thrust = new THREE.Mesh(new THREE.CapsuleGeometry(.11, 1.2, 4, 8), thrustMaterial);
+    thrust.rotation.x = Math.PI / 2;
+    thrust.position.set(0, 1.2, .72);
+    this.hitboxView.add(sweep, thrust);
+    this.hitboxView.renderOrder = 21;
+    this.hitboxSweep = sweep;
+    this.hitboxThrust = thrust;
+    this.hitboxView.visible = false;
+    this.root.add(this.hitboxView);
+  }
+
+  setCollisionDebug(visible) {
+    this.collisionDebug = visible;
+    this.hurtboxView.visible = visible;
+    for (const hitboxMaterial of this.hitboxMaterials) hitboxMaterial.opacity = visible ? .44 : .2;
   }
 
   setEquipment(equipment, hiddenItemIds = new Set()) {
@@ -166,6 +215,11 @@ export class ProceduralCharacterView {
     this.root.position.y = Math.max(0, snapshot?.worldY || 0);
     this.root.rotation.y = snapshot?.facing === -1 ? -Math.PI / 2 : Math.PI / 2;
     this.motionPlayer.update(snapshot, delta, elapsed);
+    const attacking = snapshot?.state === "AttackActive" && snapshot?.activeActionId;
+    const thrusting = /thrust|charge|headbutt|forward_cut|guard_counter|lunar/.test(snapshot?.activeActionId || "");
+    this.hitboxView.visible = Boolean(attacking);
+    this.hitboxSweep.visible = !thrusting;
+    this.hitboxThrust.visible = thrusting;
   }
 
   dispose() {
@@ -214,9 +268,10 @@ function makeBlade(length, bladeColor, guardColor, curved) {
   return weapon;
 }
 
-function makeLimb(upperMaterial, lowerMaterial, side) {
+function makeLimb(upperMaterial, lowerMaterial, side, widthScale = 1) {
   const pivot = new THREE.Group();
   const upper = mesh(new THREE.CylinderGeometry(.13, .17, .55, 6), upperMaterial);
+  upper.scale.x = upper.scale.z = widthScale;
   upper.position.y = -.25;
   upper.rotation.z = side * -.08;
   const glove = mesh(new THREE.SphereGeometry(.15, 6, 5), lowerMaterial);
@@ -225,11 +280,13 @@ function makeLimb(upperMaterial, lowerMaterial, side) {
   return pivot;
 }
 
-function makeLeg(armorMaterial, clothMaterial) {
+function makeLeg(armorMaterial, clothMaterial, widthScale = 1) {
   const pivot = new THREE.Group();
   const thigh = mesh(new THREE.CylinderGeometry(.15, .18, .58, 6), clothMaterial);
+  thigh.scale.x = thigh.scale.z = widthScale;
   thigh.position.y = -.28;
   const boot = mesh(new THREE.BoxGeometry(.28, .54, .34), armorMaterial);
+  boot.scale.x = widthScale;
   boot.position.set(0, -.75, .06);
   pivot.add(thigh, boot);
   return pivot;

@@ -36,6 +36,7 @@ export class ChampionScene {
     this.targetLook = new THREE.Vector3();
     this.currentLook = new THREE.Vector3();
     this.visible = true;
+    this.collisionDebug = false;
     this.animationFrame = 0;
     this.init();
   }
@@ -195,6 +196,14 @@ export class ChampionScene {
     }
   }
 
+  toggleCollisionDebug() {
+    this.collisionDebug = !this.collisionDebug;
+    for (const view of [...this.showcaseViews.values(), ...this.battleViews.values()]) {
+      view.setCollisionDebug(this.collisionDebug);
+    }
+    return this.collisionDebug;
+  }
+
   setMode(mode, selectedCharacterId = this.selectedCharacterId) {
     this.mode = mode;
     this.selectedCharacterId = selectedCharacterId;
@@ -242,6 +251,7 @@ export class ChampionScene {
       if (!view || view.characterId !== player.characterId) {
         view?.dispose();
         view = new ProceduralCharacterView(player.characterId);
+        view.setCollisionDebug(this.collisionDebug);
         this.scene.add(view.root);
         this.battleViews.set(player.side, view);
       }
