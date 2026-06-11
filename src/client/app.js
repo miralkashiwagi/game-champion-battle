@@ -34,6 +34,7 @@ const state = {
   pendingCharacterId: normalizeCharacterId(localStorage.getItem("cb.characterId")),
   ws: null,
   roomId: null,
+  matchSearch: null,
   cpAppliedRoundKey: null,
   resultPreviousCp: null,
   rematchDeadline: null,
@@ -197,6 +198,7 @@ function renderScreen() {
           <div><span class="muted small">登録キャラクター</span><h3>${character.name}</h3></div>
         </div>
         <p class="status ${online ? "online" : ""}">${online ? `接続状態 : 良好 / ${state.roomId || "検索中"}` : "対戦相手を検索しています"}</p>
+        ${state.matchSearch ? `<p class="muted">検索範囲 CP ${state.matchSearch.minCp} ～ ${state.matchSearch.maxCp}</p>` : ""}
         <button class="button danger" data-action="cancel">キャンセル</button>
       </section>`;
     return;
@@ -283,6 +285,7 @@ function leaveMatch(nextScreen) {
   ws?.close();
   state.roomId = null;
   state.snapshot = null;
+  state.matchSearch = null;
   state.localSide = null;
   state.keys.clear();
   state.rematchAvailable = false;
@@ -294,6 +297,7 @@ async function startMatch() {
   state.ws = null;
   previousSocket?.close();
   state.snapshot = null;
+  state.matchSearch = null;
   state.resultPreviousCp = null;
   state.rematchDeadline = null;
   state.rematchRequestedPlayerIds = [];
@@ -338,20 +342,19 @@ function connectSocket(wsPath, kind) {
 }
 
 function handleServerMessage(message, ws) {
+  if (message.type === "server.match_search") {
+    state.matchSearch = message;
+    if (state.screen === "matching") renderScreen();
+    return;
+  }
   if (message.type === "server.match_found") {
     state.ws = null;
     ws.close();
     state.roomId = message.matchId;
+    state.matchSearch = null;
     state.rematchRequested = false;
     state.rematchAvailable = true;
     connectSocket(message.wsPath, "match");
-    return;
-  }
-  if (message.type === "server.match_cancelled") {
-    state.notice = message.message;
-    state.ws = null;
-    ws.close();
-    setScreen("lobby");
     return;
   }
   if (message.type === "server.rematch_status") {

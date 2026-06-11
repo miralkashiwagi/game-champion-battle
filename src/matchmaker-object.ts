@@ -1,12 +1,20 @@
-import type { CharacterId, Env, MatchCancelledMessage, MatchFoundMessage, MatchPlayer } from "./shared/types.ts";
-import { chooseMatchPlayers } from "./matchmaking-policy.ts";
+import type { CharacterId, Env, MatchFoundMessage, MatchPlayer, MatchSearchMessage } from "./shared/types.ts";
+import {
+  CP_RANGE_INTERVAL_MS,
+  chooseMatchPairs,
+  searchRange,
+  type MatchCandidate
+} from "./matchmaking-policy.ts";
 
 interface QueueAttachment extends MatchPlayer {
   joinedAt: number;
 }
 
-interface QueueRow extends MatchPlayer, Record<string, SqlStorageValue> {
-  joined_at: number;
+interface QueueRow extends Record<string, SqlStorageValue> {
+  playerId: string;
+  cp: number;
+  characterId: CharacterId;
+  joinedAt: number;
 }
 
 interface ActiveRow extends Record<string, SqlStorageValue> {
@@ -35,9 +43,8 @@ export class MatchmakerDurableObject {
           character_id TEXT NOT NULL,
           joined_at INTEGER NOT NULL
         );
-        CREATE TABLE IF NOT EXISTS active_match (
-          singleton INTEGER PRIMARY KEY CHECK (singleton = 1),
-          match_id TEXT NOT NULL,
+        CREATE TABLE IF NOT EXISTS active_matches (
+          match_id TEXT PRIMARY KEY,
           state TEXT NOT NULL
         );
       `);
@@ -53,16 +60,12 @@ export class MatchmakerDurableObject {
     }
     if (url.pathname.endsWith("/rematch-started")) {
       const { matchId } = await request.json<{ matchId: string }>();
-      if (this.activeMatch()?.match_id === matchId) {
-        this.updateActiveState(matchId, "playing");
-        this.cancelQueued("rematch_started", "前の対戦者の再戦が成立したため、マッチングを終了しました");
-      }
+      this.updateActiveState(matchId, "playing");
       return Response.json({ ok: true });
     }
     if (url.pathname.endsWith("/release")) {
       const body = await request.json<ReleaseRequest>();
-      const assignments = await this.release(body);
-      return Response.json({ assignments });
+      return Response.json({ assignments: await this.release(body) });
     }
     if (request.headers.get("Upgrade") !== "websocket") {
       return new Response("Expected WebSocket", { status: 426 });
@@ -74,18 +77,21 @@ export class MatchmakerDurableObject {
     const client = pair[0];
     const server = pair[1];
     this.state.acceptWebSocket(server);
-    const attachment: QueueAttachment = { ...player, joinedAt: Date.now() };
+    const attachment: QueueAttachment = { ...player, joinedAt: this.nextJoinedAt(player.playerId) };
     server.serializeAttachment(attachment);
     this.removePlayerSocket(player.playerId, server);
-    this.state.storage.sql.exec(
-      "INSERT OR REPLACE INTO queue (player_id, cp, character_id, joined_at) VALUES (?, ?, ?, ?)",
-      player.playerId,
-      player.cp,
-      player.characterId,
-      attachment.joinedAt
-    );
-    await this.startQueuedMatchIfAvailable();
+    this.insertQueued(attachment);
+
+    await this.startQueuedMatches();
+    this.sendSearchStatusToPlayer(player.playerId);
+    await this.scheduleAlarmIfNeeded();
     return new Response(null, { status: 101, webSocket: client });
+  }
+
+  async alarm(): Promise<void> {
+    await this.startQueuedMatches();
+    this.broadcastSearchStatus();
+    await this.scheduleAlarmIfNeeded();
   }
 
   webSocketMessage(socket: WebSocket, message: string | ArrayBuffer): void {
@@ -107,71 +113,105 @@ export class MatchmakerDurableObject {
   }
 
   private async release(body: ReleaseRequest): Promise<Assignment[]> {
-    const active = this.activeMatch();
-    if (!active || active.match_id !== body.matchId) return [];
-    this.state.storage.sql.exec("DELETE FROM active_match WHERE singleton = 1");
+    const active = this.activeMatch(body.matchId);
+    if (!active) return [];
+    this.state.storage.sql.exec("DELETE FROM active_matches WHERE match_id = ?", body.matchId);
 
-    const queued = this.queueRows().filter((row) => !body.preferredPlayers.some((player) => player.playerId === row.playerId));
-    const selected = chooseMatchPlayers(false, body.preferredPlayers, queued);
-    if (selected.length < 2) return [];
-    return this.createMatch(selected, new Set(body.preferredPlayers.map((player) => player.playerId)));
-  }
-
-  private async startQueuedMatchIfAvailable(): Promise<void> {
-    const activeMatchExists = Boolean(this.activeMatch());
-    const queued = this.queueRows();
-    const selected = chooseMatchPlayers(activeMatchExists, [], queued);
-    if (selected.length < 2) return;
-    await this.createMatch(selected, new Set());
-  }
-
-  private async createMatch(players: MatchPlayer[], preferredIds: Set<string>): Promise<Assignment[]> {
-    const matchId = crypto.randomUUID();
-    const matchStub = this.env.MATCH_OBJECT.get(this.env.MATCH_OBJECT.idFromName(matchId));
-    const response = await matchStub.fetch(new Request(`https://internal/match/${matchId}/init`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ matchId, players, matchmakerId: this.state.id.toString() })
-    }));
-    if (!response.ok) throw new Error(`Failed to initialize match ${matchId}`);
-
-    this.state.storage.sql.exec(
-      "INSERT OR REPLACE INTO active_match (singleton, match_id, state) VALUES (1, ?, 'playing')",
-      matchId
-    );
-    for (const player of players) {
-      this.state.storage.sql.exec("DELETE FROM queue WHERE player_id = ?", player.playerId);
+    const now = Date.now();
+    const preferred = body.preferredPlayers.map((player) => ({ ...player, joinedAt: now, preferred: true }));
+    const preferredIds = new Set(preferred.map((player) => player.playerId));
+    const queued = this.queueRows().filter((row) => !preferredIds.has(row.playerId));
+    const selected = chooseMatchPairs([...preferred, ...queued], now)[0];
+    let assignments: Assignment[] = [];
+    if (selected?.some((player) => preferredIds.has(player.playerId))) {
+      assignments = await this.createMatch(selected, preferredIds) ?? [];
     }
 
-    const assignments: Assignment[] = [];
-    for (const player of players) {
-      const assignment = { playerId: player.playerId, matchId, wsPath: `/ws/match/${matchId}?playerId=${encodeURIComponent(player.playerId)}` };
-      if (preferredIds.has(player.playerId)) {
-        assignments.push(assignment);
-      } else {
-        this.sendToPlayer(player.playerId, { type: "server.match_found", matchId, wsPath: assignment.wsPath });
-      }
-    }
-    this.cancelQueued(
-      "another_match_started",
-      "別の対戦が成立したため、マッチングを終了しました",
-      new Set(players.map((player) => player.playerId))
-    );
+    await this.startQueuedMatches();
+    this.broadcastSearchStatus();
+    await this.scheduleAlarmIfNeeded();
     return assignments;
   }
 
-  private activeMatch(): ActiveRow | undefined {
-    return this.state.storage.sql.exec<ActiveRow>("SELECT match_id, state FROM active_match WHERE singleton = 1").toArray()[0];
+  private async startQueuedMatches(): Promise<void> {
+    while (true) {
+      const selected = chooseMatchPairs(this.queueRows(), Date.now())[0];
+      if (!selected) return;
+      const created = await this.createMatch(selected, new Set());
+      if (!created) return;
+    }
+  }
+
+  private async createMatch(players: MatchCandidate[], preferredIds: Set<string>): Promise<Assignment[] | undefined> {
+    const queuedPlayers = players.filter((player) => !preferredIds.has(player.playerId));
+    for (const player of queuedPlayers) this.deleteQueued(player);
+
+    const matchId = crypto.randomUUID();
+    const matchStub = this.env.MATCH_OBJECT.get(this.env.MATCH_OBJECT.idFromName(matchId));
+    try {
+      const response = await matchStub.fetch(new Request(`https://internal/match/${matchId}/init`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ matchId, players: players.map(stripQueueFields), matchmakerId: this.state.id.toString() })
+      }));
+      if (!response.ok) throw new Error(`Failed to initialize match ${matchId}`);
+    } catch (error) {
+      for (const player of queuedPlayers) this.insertQueued(player);
+      console.error(error);
+      return undefined;
+    }
+
+    this.state.storage.sql.exec(
+      "INSERT INTO active_matches (match_id, state) VALUES (?, 'playing')",
+      matchId
+    );
+
+    const assignments: Assignment[] = [];
+    for (const player of players) {
+      const assignment = {
+        playerId: player.playerId,
+        matchId,
+        wsPath: `/ws/match/${matchId}?playerId=${encodeURIComponent(player.playerId)}`
+      };
+      if (preferredIds.has(player.playerId)) assignments.push(assignment);
+      else this.sendToPlayer(player.playerId, { type: "server.match_found", matchId, wsPath: assignment.wsPath });
+    }
+    return assignments;
+  }
+
+  private activeMatch(matchId: string): ActiveRow | undefined {
+    return this.state.storage.sql.exec<ActiveRow>(
+      "SELECT match_id, state FROM active_matches WHERE match_id = ?",
+      matchId
+    ).toArray()[0];
   }
 
   private updateActiveState(matchId: string, state: ActiveRow["state"]): void {
-    this.state.storage.sql.exec("UPDATE active_match SET state = ? WHERE singleton = 1 AND match_id = ?", state, matchId);
+    this.state.storage.sql.exec("UPDATE active_matches SET state = ? WHERE match_id = ?", state, matchId);
   }
 
   private queueRows(): QueueRow[] {
     return this.state.storage.sql.exec<QueueRow>(
-      "SELECT player_id AS playerId, cp, character_id AS characterId, joined_at FROM queue ORDER BY joined_at ASC"
+      "SELECT player_id AS playerId, cp, character_id AS characterId, joined_at AS joinedAt FROM queue ORDER BY joined_at ASC, player_id ASC"
     ).toArray();
+  }
+
+  private insertQueued(player: MatchCandidate): void {
+    this.state.storage.sql.exec(
+      "INSERT OR REPLACE INTO queue (player_id, cp, character_id, joined_at) VALUES (?, ?, ?, ?)",
+      player.playerId,
+      player.cp,
+      player.characterId,
+      player.joinedAt
+    );
+  }
+
+  private deleteQueued(player: MatchCandidate): void {
+    this.state.storage.sql.exec(
+      "DELETE FROM queue WHERE player_id = ? AND joined_at = ?",
+      player.playerId,
+      player.joinedAt
+    );
   }
 
   private sendToPlayer(playerId: string, message: MatchFoundMessage): void {
@@ -181,18 +221,50 @@ export class MatchmakerDurableObject {
     socket.close(1000, "Match found");
   }
 
-  private cancelQueued(reason: MatchCancelledMessage["reason"], message: string, excludedPlayerIds = new Set<string>()): void {
-    const payload: MatchCancelledMessage = { type: "server.match_cancelled", reason, message };
+  private sendSearchStatusToPlayer(playerId: string): void {
+    const socket = this.socketForPlayer(playerId);
+    const attachment = socket ? attachmentOf(socket) : undefined;
+    if (!socket || !attachment || !this.hasQueued(attachment)) return;
+    socket.send(JSON.stringify({ type: "server.match_search", ...searchRange(attachment, Date.now()) } satisfies MatchSearchMessage));
+  }
+
+  private broadcastSearchStatus(): void {
+    const now = Date.now();
     for (const socket of this.state.getWebSockets()) {
-      if (excludedPlayerIds.has(attachmentOf(socket)?.playerId ?? "")) continue;
-      socket.send(JSON.stringify(payload));
-      socket.close(1000, "Matchmaking cancelled");
+      const attachment = attachmentOf(socket);
+      if (!attachment || !this.hasQueued(attachment)) continue;
+      socket.send(JSON.stringify({ type: "server.match_search", ...searchRange(attachment, now) } satisfies MatchSearchMessage));
     }
-    this.state.storage.sql.exec("DELETE FROM queue");
+  }
+
+  private hasQueued(player: QueueAttachment): boolean {
+    return Boolean(this.state.storage.sql.exec<{ found: number }>(
+      "SELECT 1 AS found FROM queue WHERE player_id = ? AND joined_at = ?",
+      player.playerId,
+      player.joinedAt
+    ).toArray()[0]);
+  }
+
+  private async scheduleAlarmIfNeeded(): Promise<void> {
+    if (this.queueRows().length === 0) {
+      await this.state.storage.deleteAlarm();
+      return;
+    }
+    const nextAlarm = Date.now() + CP_RANGE_INTERVAL_MS;
+    const currentAlarm = await this.state.storage.getAlarm();
+    if (currentAlarm === null || nextAlarm < currentAlarm) await this.state.storage.setAlarm(nextAlarm);
   }
 
   private socketForPlayer(playerId: string): WebSocket | undefined {
     return this.state.getWebSockets().find((socket) => attachmentOf(socket)?.playerId === playerId);
+  }
+
+  private nextJoinedAt(playerId: string): number {
+    const previousJoinedAt = this.state.getWebSockets()
+      .map((socket) => attachmentOf(socket))
+      .filter((attachment) => attachment?.playerId === playerId)
+      .reduce((latest, attachment) => Math.max(latest, attachment?.joinedAt ?? 0), 0);
+    return Math.max(Date.now(), previousJoinedAt + 1);
   }
 
   private removePlayerSocket(playerId: string, except: WebSocket): void {
@@ -202,9 +274,13 @@ export class MatchmakerDurableObject {
   }
 
   private removeQueuedSocket(socket: WebSocket): void {
-    const playerId = attachmentOf(socket)?.playerId;
-    if (playerId) this.state.storage.sql.exec("DELETE FROM queue WHERE player_id = ?", playerId);
+    const attachment = attachmentOf(socket);
+    if (attachment) this.deleteQueued(attachment);
   }
+}
+
+function stripQueueFields(player: MatchCandidate): MatchPlayer {
+  return { playerId: player.playerId, cp: player.cp, characterId: player.characterId };
 }
 
 function attachmentOf(socket: WebSocket): QueueAttachment | undefined {

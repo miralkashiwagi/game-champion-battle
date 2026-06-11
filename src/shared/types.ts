@@ -130,10 +130,11 @@ export interface MatchFoundMessage {
   wsPath: string;
 }
 
-export interface MatchCancelledMessage {
-  type: "server.match_cancelled";
-  reason: "rematch_started" | "another_match_started";
-  message: string;
+export interface MatchSearchMessage {
+  type: "server.match_search";
+  minCp: number;
+  maxCp: number;
+  waitedMs: number;
 }
 
 export interface RematchStatusMessage {
@@ -180,7 +181,7 @@ export type ServerMessage =
   | MatchEvent
   | ServerPong
   | MatchFoundMessage
-  | MatchCancelledMessage
+  | MatchSearchMessage
   | RematchStatusMessage
   | RematchUnavailableMessage;
 

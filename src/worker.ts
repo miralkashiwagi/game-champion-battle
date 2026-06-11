@@ -17,14 +17,13 @@ export default {
       const playerId = url.searchParams.get("playerId") ?? crypto.randomUUID();
       const cp = clampNumber(Number(url.searchParams.get("cp") ?? 1000), 0, 9999);
       const characterId = normalizeCharacterId(url.searchParams.get("characterId"));
-      const bucket = Math.round(cp / 100) * 100;
-      const roomId = `cp-${bucket}`;
+      const roomId = "ranked-global-v1";
       const query = new URLSearchParams({ playerId, cp: String(cp), characterId });
       return Response.json({ roomId, playerId, cp, characterId, wsPath: `/ws/matchmaker/${roomId}?${query}` });
     }
 
     if (url.pathname.startsWith("/ws/matchmaker/")) {
-      const roomId = decodeURIComponent(url.pathname.slice("/ws/matchmaker/".length)) || "cp-1000";
+      const roomId = decodeURIComponent(url.pathname.slice("/ws/matchmaker/".length)) || "ranked-global-v1";
       const id = env.MATCHMAKER_OBJECT.idFromName(roomId);
       return env.MATCHMAKER_OBJECT.get(id).fetch(request);
     }
