@@ -3,36 +3,21 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Champion Battle MVP</title>
+    <meta name="theme-color" content="#0b1118" />
+    <title>Champion Battle</title>
     <link rel="stylesheet" href="/styles.css" />
   </head>
   <body>
     <div id="app">
-      <header class="topbar">
-        <div>
-          <strong>Champion Battle</strong>
-          <span id="connection">offline</span>
-        </div>
-        <div id="playerMeta"></div>
-      </header>
-
-      <main class="layout">
-        <section class="panel" id="screen"></section>
-        <section class="battle">
-          <canvas id="game" width="1280" height="540"></canvas>
-          <div id="battleHud"></div>
-        </section>
-      </main>
-
-      <footer class="controls">
-        <span>A/D 移動</span>
-        <span>W ジャンプ</span>
-        <span>J 攻撃/長押し</span>
-        <span>K ガード</span>
-        <span>E 拾得</span>
-        <span>1-4 スキル</span>
-      </footer>
+      <canvas id="game" aria-label="Champion Battle 3D scene"></canvas>
+      <div class="vignette" aria-hidden="true"></div>
+      <div id="screen" class="screen-layer"></div>
+      <div id="battleHud" class="battle-hud" hidden></div>
+      <div id="webglFallback" class="webgl-fallback" hidden>
+        <strong>3D表示を開始できません</strong>
+        <span>WebGL対応ブラウザで再度お試しください。</span>
+      </div>
     </div>
-    <script type="module" src="/src/client/app.js"></script>
+    <script type="module" src="/app.js"></script>
   </body>
 </html>
