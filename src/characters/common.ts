@@ -2,6 +2,7 @@ import type { AttackSpec } from "../shared/character-types.ts";
 
 export const BAREHAND_COMBO: AttackSpec[] = [1, 2, 3].map((step) => ({
   id: `barehand_${step}`,
+  motionId: `barehand_${step}`,
   name: `Barehand ${step}`,
   damage: 4,
   range: 58,

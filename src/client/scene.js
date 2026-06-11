@@ -28,6 +28,10 @@ export class ChampionScene {
     this.showcaseViews = new Map();
     this.battleViews = new Map();
     this.itemViews = new Map();
+    this.lastFieldItems = new Map();
+    this.pickupAnimations = new Map();
+    this.hiddenPickupItems = new Set();
+    this.previousSnapshotFrame = null;
     this.targetCamera = new THREE.Vector3();
     this.targetLook = new THREE.Vector3();
     this.currentLook = new THREE.Vector3();
@@ -245,31 +249,69 @@ export class ChampionScene {
       view.root.scale.setScalar(1);
       view.root.position.x = worldX(player.position.x);
       view.root.position.z = player.side === "p1" ? .15 : -.15;
-      view.setEquipment(player.equipment);
+    }
+    this.detectPickups(snapshot);
+    for (const player of snapshot.players) {
+      const view = this.battleViews.get(player.side);
+      view.setEquipment(player.equipment, this.hiddenPickupItems);
       view.setAppearance({ side: player.side, highlighted: player.side === localSide });
     }
     for (const [side, view] of this.battleViews) {
       if (!snapshot.players.some((player) => player.side === side)) view.root.visible = false;
     }
     this.syncFieldItems(snapshot.fieldItems || []);
+    this.lastFieldItems = new Map((snapshot.fieldItems || []).map((field) => [field.id, field]));
+    this.previousSnapshotFrame = snapshot.frame;
+  }
+
+  detectPickups(snapshot) {
+    const activeFieldIds = new Set((snapshot.fieldItems || []).map((field) => field.id));
+    const equipped = new Map();
+    for (const player of snapshot.players) {
+      for (const [slot, item] of Object.entries(player.equipment)) {
+        if (item) equipped.set(item.id, { player, slot });
+      }
+    }
+    for (const [id, previousField] of this.lastFieldItems) {
+      if (activeFieldIds.has(id) || this.pickupAnimations.has(id)) continue;
+      const destination = equipped.get(id);
+      const itemView = this.itemViews.get(id);
+      const characterView = destination && this.battleViews.get(destination.player.side);
+      if (!destination || !itemView || !characterView) continue;
+      if (this.previousSnapshotFrame != null && snapshot.frame - this.previousSnapshotFrame > 12) continue;
+      this.hiddenPickupItems.add(id);
+      characterView.playPickup();
+      this.pickupAnimations.set(id, {
+        elapsed: 0,
+        duration: .28,
+        start: itemView.root.position.clone(),
+        targetSide: destination.player.side,
+        slot: destination.slot
+      });
+    }
   }
 
   syncFieldItems(items) {
     const active = new Set();
     for (const field of items) {
       active.add(field.id);
-      let view = this.itemViews.get(field.id);
-      if (!view) {
-        view = createFieldItemView(field.item.slot, field.item.originCharacterId);
-        this.scene.add(view);
-        this.itemViews.set(field.id, view);
+      let record = this.itemViews.get(field.id);
+      if (!record) {
+        const root = createFieldItemView(field.item.slot, field.item.originCharacterId);
+        root.position.set(worldX(field.position.x), .24, .55);
+        this.scene.add(root);
+        record = { root, field };
+        this.itemViews.set(field.id, record);
       }
-      view.position.set(worldX(field.position.x), .24, .55);
+      record.field = field;
+      record.root.position.x = worldX(field.position.x);
+      record.root.position.z = .55;
     }
-    for (const [id, view] of this.itemViews) {
+    for (const [id, record] of this.itemViews) {
       if (active.has(id)) continue;
-      view.removeFromParent();
-      disposeGroup(view);
+      if (this.pickupAnimations.has(id)) continue;
+      record.root.removeFromParent();
+      disposeGroup(record.root);
       this.itemViews.delete(id);
     }
   }
@@ -299,18 +341,57 @@ export class ChampionScene {
         const view = this.battleViews.get(player.side);
         if (!view) continue;
         view.root.position.x = THREE.MathUtils.lerp(view.root.position.x, worldX(player.position.x), Math.min(1, delta * 18));
-        view.update({ ...player, worldY: Math.max(0, (GROUND_Y - player.position.y) / WORLD_SCALE) }, delta, this.elapsed);
+        view.update({ ...player, snapshotFrame: this.snapshot.frame, worldY: Math.max(0, (GROUND_Y - player.position.y) / WORLD_SCALE) }, delta, this.elapsed);
       }
-      for (const item of this.itemViews.values()) {
-        item.rotation.y += delta * 1.5;
-        item.position.y = .24 + Math.sin(this.elapsed * 3 + item.id) * .04;
-      }
+      this.updateFieldItems(delta);
     } else {
       for (const [index, view] of [...this.showcaseViews.values()].entries()) {
         if (view.root.visible) view.update({ state: "Idle", facing: index < this.showcaseViews.size / 2 ? 1 : -1, worldY: 0 }, delta, this.elapsed);
       }
     }
     this.renderer.render(this.scene, this.camera);
+  }
+
+  updateFieldItems(delta) {
+    for (const [id, record] of this.itemViews) {
+      const pickup = this.pickupAnimations.get(id);
+      if (pickup) {
+        pickup.elapsed += delta;
+        const targetView = this.battleViews.get(pickup.targetSide);
+        if (!targetView) {
+          this.finishPickup(id, record);
+          continue;
+        }
+        const target = targetView.getSocketWorldPosition(pickup.slot);
+        const t = Math.min(1, pickup.elapsed / pickup.duration);
+        const eased = 1 - Math.pow(1 - t, 3);
+        record.root.position.lerpVectors(pickup.start, target, eased);
+        record.root.position.y += Math.sin(t * Math.PI) * .32;
+        record.root.rotation.y += delta * 10;
+        record.root.scale.setScalar(1 - eased * .35);
+        if (t >= 1) this.finishPickup(id, record);
+        continue;
+      }
+
+      const ageFrames = Math.max(0, (this.snapshot?.frame || record.field.droppedFrame) - record.field.droppedFrame);
+      const dropProgress = Math.min(1, ageFrames / 18);
+      const dropArc = dropProgress < 1 ? Math.sin(dropProgress * Math.PI) * .72 : 0;
+      record.root.rotation.y += delta * (dropProgress < 1 ? 8 : 1.5);
+      record.root.rotation.z = dropProgress < 1 ? (1 - dropProgress) * .65 : 0;
+      record.root.position.y = .24 + dropArc + (dropProgress >= 1 ? Math.sin(this.elapsed * 3 + hashId(id)) * .04 : 0);
+    }
+  }
+
+  finishPickup(id, record) {
+    record.root.removeFromParent();
+    disposeGroup(record.root);
+    this.itemViews.delete(id);
+    this.pickupAnimations.delete(id);
+    this.hiddenPickupItems.delete(id);
+    for (const player of this.snapshot?.players || []) {
+      const view = this.battleViews.get(player.side);
+      view?.setEquipment(player.equipment, this.hiddenPickupItems);
+    }
   }
 }
 
@@ -320,6 +401,12 @@ function fullEquipment() {
 
 function worldX(x) {
   return (x - STAGE_CENTER) / WORLD_SCALE;
+}
+
+function hashId(value) {
+  let hash = 0;
+  for (let index = 0; index < value.length; index += 1) hash = (hash * 31 + value.charCodeAt(index)) | 0;
+  return Math.abs(hash % 1000) / 100;
 }
 
 function std(color, roughness = .8, metalness = .08) {

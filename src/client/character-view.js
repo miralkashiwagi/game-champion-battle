@@ -1,30 +1,38 @@
 import * as THREE from "../../public/vendor/three.module.min.js";
 import { CHARACTER_REGISTRY } from "../characters/registry.ts";
+import { ScriptRigAdapter } from "./script-rig-adapter.js";
+import { ScriptMotionPlayer } from "./script-motion-player.js";
 
-const STATE_POSES = {
-  Idle: "idle", Move: "move", AttackStartup: "attack", AttackActive: "attack", AttackRecovery: "attack",
-  Guard: "guard", GuardCounterWindow: "guard", Hitstun: "hit", KneelDown: "down", AirDamaged: "hit",
-  Down: "down", Stunned: "hit", Dead: "dead"
+const EQUIPMENT_SLOTS = ["cloak", "head", "armor", "weapon"];
+const SLOT_SOCKETS = {
+  cloak: "back",
+  head: "headAccessory",
+  armor: "chestArmor",
+  weapon: "rightHandGrip"
 };
 
 export const MODEL_CONTRACT = Object.freeze({
-  animationClips: ["idle", "move", "attack", "guard", "hit", "down", "dead"],
-  attachmentPoints: ["cloak", "head", "armor", "weapon"]
+  renderer: "script",
+  humanoidBones: ["hips", "chest", "head", "leftUpperArm", "rightUpperArm", "leftUpperLeg", "rightUpperLeg"],
+  attachmentSockets: ["headAccessory", "chestArmor", "back", "leftHandGrip", "rightHandGrip"],
+  stateMotions: ["idle", "move", "guard", "hit", "down", "dead", "pickup"]
 });
 
 export class ProceduralCharacterView {
   constructor(characterId) {
     this.characterId = characterId;
-    this.visual = CHARACTER_REGISTRY[characterId].visual;
+    this.registration = CHARACTER_REGISTRY[characterId];
+    this.visual = this.registration.visual;
     this.palette = this.visual.palette;
+    this.profile = this.registration.definition.visualProfile;
     this.root = new THREE.Group();
-    this.root.name = `${characterId}-procedural`;
-    this.root.userData.modelType = "procedural";
+    this.root.name = `${characterId}-game-root`;
+    this.root.userData.modelType = "script";
     this.root.userData.contract = MODEL_CONTRACT;
-    this.parts = {};
-    this.equipment = {};
-    this.lastState = "Idle";
-    this.time = Math.random() * 10;
+    this.visualRoot = new THREE.Group();
+    this.visualRoot.name = `${characterId}-visual-root`;
+    this.root.add(this.visualRoot);
+    this.equipment = new Map();
     this.build();
   }
 
@@ -36,57 +44,113 @@ export class ProceduralCharacterView {
     const darkSteel = material(p.metalDark, .92, .28);
     const leather = material(0x3d3028, .8);
 
-    this.parts.body = new THREE.Group();
-    this.parts.body.position.y = 1.18;
-    this.root.add(this.parts.body);
+    const hips = new THREE.Group();
+    const chest = new THREE.Group();
+    chest.position.y = 1.18;
+    hips.add(chest);
+    this.visualRoot.add(hips);
     const torso = mesh(new THREE.CylinderGeometry(.42, .52, .82, 6), cloth);
     torso.scale.z = .7;
-    this.parts.body.add(torso);
+    chest.add(torso);
     const belt = mesh(new THREE.BoxGeometry(.82, .12, .48), leather);
     belt.position.y = -.4;
-    this.parts.body.add(belt);
+    chest.add(belt);
 
-    this.parts.head = new THREE.Group();
-    this.parts.head.position.y = .72;
-    this.parts.body.add(this.parts.head);
-    this.parts.leftArm = makeLimb(steel, clothDark, -1);
-    this.parts.rightArm = makeLimb(steel, clothDark, 1);
-    this.parts.leftArm.position.set(-.5, .25, 0);
-    this.parts.rightArm.position.set(.5, .25, 0);
-    this.parts.body.add(this.parts.leftArm, this.parts.rightArm);
-    this.parts.leftLeg = makeLeg(darkSteel, clothDark);
-    this.parts.rightLeg = makeLeg(darkSteel, clothDark);
-    this.parts.leftLeg.position.set(-.23, -.38, 0);
-    this.parts.rightLeg.position.set(.23, -.38, 0);
-    this.parts.body.add(this.parts.leftLeg, this.parts.rightLeg);
+    const head = new THREE.Group();
+    head.position.y = .72;
+    chest.add(head);
+    const leftArm = makeLimb(steel, clothDark, -1);
+    const rightArm = makeLimb(steel, clothDark, 1);
+    leftArm.position.set(-.5, .25, 0);
+    rightArm.position.set(.5, .25, 0);
+    chest.add(leftArm, rightArm);
+    const leftLeg = makeLeg(darkSteel, clothDark);
+    const rightLeg = makeLeg(darkSteel, clothDark);
+    leftLeg.position.set(-.23, -.38, 0);
+    rightLeg.position.set(.23, -.38, 0);
+    chest.add(leftLeg, rightLeg);
 
-    this.buildEquipmentVariants();
+    const sockets = {
+      headAccessory: socket("head-accessory", head),
+      chestArmor: socket("chest-armor", chest),
+      back: socket("back", chest),
+      leftHandGrip: socket("left-hand-grip", leftArm, [0, -.58, 0]),
+      rightHandGrip: socket("right-hand-grip", rightArm, [0, -.58, 0])
+    };
+    this.rig = new ScriptRigAdapter({
+      hips,
+      chest,
+      head,
+      leftUpperArm: leftArm,
+      rightUpperArm: rightArm,
+      leftUpperLeg: leftLeg,
+      rightUpperLeg: rightLeg
+    }, sockets);
+    this.visualRoot.scale.setScalar(this.profile.scale);
+    this.visualRoot.position.y = this.profile.groundOffset;
+    this.motionPlayer = new ScriptMotionPlayer(this.rig, this.visualRoot, collectAttackSpecs());
+
     const shadow = mesh(new THREE.CircleGeometry(.72, 24), new THREE.MeshBasicMaterial({ color: 0x05080b, transparent: true, opacity: .32, depthWrite: false }));
     shadow.rotation.x = -Math.PI / 2;
     shadow.position.y = .015;
     this.root.add(shadow);
   }
 
-  buildEquipmentVariants() {
-    this.equipment = Object.fromEntries(MODEL_CONTRACT.attachmentPoints.map((slot) => [slot, {}]));
-    for (const [characterId, registration] of Object.entries(CHARACTER_REGISTRY)) {
-      for (const slot of MODEL_CONTRACT.attachmentPoints) {
-        const context = { THREE, parts: this.parts, material, makeBlade };
-        this.equipment[slot][characterId] = registration.visual.createEquipment(slot, context);
+  setEquipment(equipment, hiddenItemIds = new Set()) {
+    for (const slot of EQUIPMENT_SLOTS) {
+      const item = equipment?.[slot] || null;
+      const current = this.equipment.get(slot);
+      const itemKey = item ? (item.id || `${this.characterId}:${slot}:showcase`) : null;
+      const originCharacterId = item?.originCharacterId || this.characterId;
+      if (!item) {
+        if (current) this.removeEquipment(slot);
+        continue;
       }
+      if (!current || current.itemKey !== itemKey || current.originCharacterId !== originCharacterId) {
+        this.removeEquipment(slot);
+        this.addEquipment(slot, itemKey, originCharacterId);
+      }
+      const mounted = this.equipment.get(slot);
+      const visible = !item.id || !hiddenItemIds.has(item.id);
+      for (const object of mounted?.objects || []) object.visible = visible;
     }
   }
 
-  setEquipment(equipment) {
-    for (const slot of MODEL_CONTRACT.attachmentPoints) {
-      const item = equipment?.[slot];
-      const originCharacterId = item?.originCharacterId || this.characterId;
-      for (const [variantId, variant] of Object.entries(this.equipment[slot])) {
-        const visible = Boolean(item) && variantId === originCharacterId;
-        variant.visible = visible;
-        for (const linkedPart of variant.userData.linkedParts || []) linkedPart.visible = visible;
-      }
+  addEquipment(slot, itemKey, originCharacterId) {
+    const factory = CHARACTER_REGISTRY[originCharacterId]?.visual;
+    if (!factory) return;
+    const definition = factory.createEquipment(slot, { THREE, material, makeBlade });
+    const objects = [];
+    for (const attachment of definition.attachments) {
+      const target = this.rig.getSocket(attachment.socket);
+      if (!target || !attachment.object) continue;
+      const object = attachment.object;
+      if (attachment.position) object.position.fromArray(attachment.position);
+      if (attachment.rotation) object.rotation.fromArray(attachment.rotation);
+      if (attachment.scale != null) object.scale.setScalar(attachment.scale);
+      target.add(object);
+      objects.push(object);
     }
+    this.equipment.set(slot, { itemKey, originCharacterId, objects, motions: definition.motions || {} });
+  }
+
+  removeEquipment(slot) {
+    const mounted = this.equipment.get(slot);
+    if (!mounted) return;
+    for (const object of mounted.objects) {
+      object.removeFromParent();
+      disposeGroup(object);
+    }
+    this.equipment.delete(slot);
+  }
+
+  getSocketWorldPosition(slot, target = new THREE.Vector3()) {
+    this.root.updateWorldMatrix(true, true);
+    return this.rig.getSocket(SLOT_SOCKETS[slot])?.getWorldPosition(target) || this.root.getWorldPosition(target);
+  }
+
+  playPickup() {
+    this.motionPlayer.playPickup();
   }
 
   setAppearance({ side, highlighted = false } = {}) {
@@ -99,83 +163,76 @@ export class ProceduralCharacterView {
   }
 
   update(snapshot, delta, elapsed) {
-    this.time += delta;
-    const state = snapshot?.state || "Idle";
-    const pose = STATE_POSES[state] || "idle";
-    const phase = this.time * (pose === "move" ? 9 : 2.3);
     this.root.position.y = Math.max(0, snapshot?.worldY || 0);
     this.root.rotation.y = snapshot?.facing === -1 ? -Math.PI / 2 : Math.PI / 2;
-    this.parts.body.rotation.set(0, 0, 0);
-    this.parts.leftArm.rotation.set(0, 0, 0);
-    this.parts.rightArm.rotation.set(0, 0, 0);
-    this.parts.leftLeg.rotation.x = 0;
-    this.parts.rightLeg.rotation.x = 0;
-    this.parts.head.rotation.set(0, 0, 0);
-
-    if (pose === "idle") {
-      this.parts.body.position.y = 1.18 + Math.sin(phase) * .025;
-      this.parts.leftArm.rotation.z = -.08 + Math.sin(phase) * .025;
-      this.parts.rightArm.rotation.z = .08 - Math.sin(phase) * .025;
-    } else if (pose === "move") {
-      this.parts.body.position.y = 1.18 + Math.abs(Math.sin(phase)) * .055;
-      this.parts.leftLeg.rotation.x = Math.sin(phase) * .62;
-      this.parts.rightLeg.rotation.x = -Math.sin(phase) * .62;
-      this.parts.leftArm.rotation.x = -Math.sin(phase) * .38;
-      this.parts.rightArm.rotation.x = Math.sin(phase) * .38;
-    } else if (pose === "attack") {
-      const strike = state === "AttackStartup" ? -.75 : state === "AttackActive" ? 1.2 : .35;
-      this.parts.body.rotation.y = strike * .18;
-      this.parts.rightArm.rotation.x = strike;
-      this.parts.rightArm.rotation.z = -.55;
-    } else if (pose === "guard") {
-      this.parts.leftArm.rotation.x = -1.05; this.parts.leftArm.rotation.z = -.35; this.parts.body.rotation.x = .08;
-    } else if (pose === "hit") {
-      this.parts.body.rotation.x = -.22; this.parts.body.rotation.z = Math.sin(elapsed * 35) * .08;
-      this.parts.leftArm.rotation.z = -.65; this.parts.rightArm.rotation.z = .65;
-    } else if (pose === "down") {
-      this.parts.body.rotation.z = 1.15; this.parts.body.position.y = .65;
-    } else if (pose === "dead") {
-      this.parts.body.rotation.z = 1.52; this.parts.body.position.y = .45;
-    }
-    this.lastState = state;
+    this.motionPlayer.update(snapshot, delta, elapsed);
   }
 
   dispose() {
+    for (const slot of [...this.equipment.keys()]) this.removeEquipment(slot);
     disposeGroup(this.root);
     this.root.removeFromParent();
   }
 }
 
 export function createFieldItemView(slot, characterId) {
-  return CHARACTER_REGISTRY[characterId].visual.createFieldItem(slot, { THREE, material });
+  const root = CHARACTER_REGISTRY[characterId].visual.createFieldItem(slot, { THREE, material });
+  root.userData.slot = slot;
+  root.userData.originCharacterId = characterId;
+  return root;
 }
 
-export class GlbCharacterView {
-  constructor() { throw new Error("GLB model support is reserved by MODEL_CONTRACT and is not enabled in this build."); }
+function collectAttackSpecs() {
+  const specs = new Map();
+  for (const registration of Object.values(CHARACTER_REGISTRY)) {
+    const definition = registration.definition;
+    for (const attack of [...definition.combo, ...definition.barehandCombo, definition.holdAttack, definition.guardCounter, ...Object.values(definition.skills)]) {
+      specs.set(attack.motionId, attack);
+    }
+  }
+  return specs;
+}
+
+function socket(name, parent, position = [0, 0, 0]) {
+  const result = new THREE.Group();
+  result.name = name;
+  result.position.fromArray(position);
+  parent.add(result);
+  return result;
 }
 
 function makeBlade(length, bladeColor, guardColor, curved) {
   const weapon = new THREE.Group();
   const blade = mesh(new THREE.BoxGeometry(curved ? .09 : .11, length, .065), material(bladeColor, .72, .52));
-  blade.position.y = -length / 2; blade.rotation.z = curved ? -.08 : 0;
+  blade.position.y = -length / 2;
+  blade.rotation.z = curved ? -.08 : 0;
   const tip = mesh(new THREE.ConeGeometry(curved ? .065 : .08, .24, 4), material(bladeColor, .72, .52));
-  tip.position.y = -length - .1; tip.rotation.z = Math.PI;
+  tip.position.y = -length - .1;
+  tip.rotation.z = Math.PI;
   const guard = mesh(new THREE.BoxGeometry(curved ? .32 : .46, .075, .09), material(guardColor, .62, .3));
-  weapon.add(blade, tip, guard); return weapon;
+  weapon.add(blade, tip, guard);
+  return weapon;
 }
 
 function makeLimb(upperMaterial, lowerMaterial, side) {
   const pivot = new THREE.Group();
-  const upper = mesh(new THREE.CylinderGeometry(.13, .17, .55, 6), upperMaterial); upper.position.y = -.25; upper.rotation.z = side * -.08;
-  const glove = mesh(new THREE.SphereGeometry(.15, 6, 5), lowerMaterial); glove.position.y = -.58;
-  pivot.add(upper, glove); return pivot;
+  const upper = mesh(new THREE.CylinderGeometry(.13, .17, .55, 6), upperMaterial);
+  upper.position.y = -.25;
+  upper.rotation.z = side * -.08;
+  const glove = mesh(new THREE.SphereGeometry(.15, 6, 5), lowerMaterial);
+  glove.position.y = -.58;
+  pivot.add(upper, glove);
+  return pivot;
 }
 
 function makeLeg(armorMaterial, clothMaterial) {
   const pivot = new THREE.Group();
-  const thigh = mesh(new THREE.CylinderGeometry(.15, .18, .58, 6), clothMaterial); thigh.position.y = -.28;
-  const boot = mesh(new THREE.BoxGeometry(.28, .54, .34), armorMaterial); boot.position.set(0, -.75, .06);
-  pivot.add(thigh, boot); return pivot;
+  const thigh = mesh(new THREE.CylinderGeometry(.15, .18, .58, 6), clothMaterial);
+  thigh.position.y = -.28;
+  const boot = mesh(new THREE.BoxGeometry(.28, .54, .34), armorMaterial);
+  boot.position.set(0, -.75, .06);
+  pivot.add(thigh, boot);
+  return pivot;
 }
 
 function material(color, roughness = .78, metalness = .12) {
@@ -183,7 +240,10 @@ function material(color, roughness = .78, metalness = .12) {
 }
 
 function mesh(geometry, meshMaterial) {
-  const result = new THREE.Mesh(geometry, meshMaterial); result.castShadow = true; result.receiveShadow = true; return result;
+  const result = new THREE.Mesh(geometry, meshMaterial);
+  result.castShadow = true;
+  result.receiveShadow = true;
+  return result;
 }
 
 function disposeGroup(group) {

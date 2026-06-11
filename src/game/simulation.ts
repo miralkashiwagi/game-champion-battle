@@ -72,6 +72,8 @@ export class MatchSimulation {
       equippedCount: 4,
       comboStep: 0,
       attackName: null,
+      activeActionId: null,
+      actionStartedFrame: null,
       guardUntilFrame: 0,
       latestInput: { ...DEFAULT_INPUT, skills: {} },
       previousInput: { ...DEFAULT_INPUT, skills: {} },
@@ -158,6 +160,8 @@ export class MatchSimulation {
     if (player.stateTimer <= 0 && ["Hitstun", "AttackRecovery", "GuardCounterWindow", "Stunned"].includes(player.state)) {
       player.state = "Idle";
       player.attackName = null;
+      player.activeActionId = null;
+      player.actionStartedFrame = null;
     }
     if (player.stateTimer <= 0 && player.state === "KneelDown") {
       player.state = "Down";
@@ -240,6 +244,8 @@ export class MatchSimulation {
         player.activeAttack = null;
         player.attackTimer = 0;
         player.attackName = null;
+        player.activeActionId = null;
+        player.actionStartedFrame = null;
         player.state = "Idle";
       }
     }
@@ -250,6 +256,8 @@ export class MatchSimulation {
     player.activeAttack = { spec, startFrame: this.frame, hitDone: false };
     player.attackTimer = 0;
     player.attackName = spec.name;
+    player.activeActionId = spec.motionId || spec.id;
+    player.actionStartedFrame = this.frame;
     player.state = "AttackStartup";
     player.velocity.x = 0;
     if (spec.invulnerable) player.invulnerableUntilFrame = this.frame + spec.startupFrames + spec.activeFrames;
@@ -475,6 +483,8 @@ export class MatchSimulation {
       equippedCount: player.equippedCount,
       comboStep: player.comboStep,
       attackName: player.attackName,
+      activeActionId: player.activeActionId,
+      actionStartedFrame: player.actionStartedFrame,
       guardUntilFrame: player.guardUntilFrame
     };
   }

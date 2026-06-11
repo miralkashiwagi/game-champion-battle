@@ -106,6 +106,8 @@ export interface PlayerSnapshot {
   equippedCount: number;
   comboStep: number;
   attackName: string | null;
+  activeActionId: string | null;
+  actionStartedFrame: number | null;
   guardUntilFrame: number;
 }
 

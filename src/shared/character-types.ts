@@ -1,4 +1,7 @@
 export type EquipmentSlot = "cloak" | "head" | "armor" | "weapon";
+export type MotionId = string;
+export type HumanoidBoneName = "hips" | "chest" | "head" | "leftUpperArm" | "rightUpperArm" | "leftUpperLeg" | "rightUpperLeg";
+export type AttachmentSocket = "headAccessory" | "chestArmor" | "back" | "leftHandGrip" | "rightHandGrip";
 type CharacterState =
   | "Idle" | "Move" | "AttackStartup" | "AttackActive" | "AttackRecovery" | "Guard"
   | "GuardCounterWindow" | "Hitstun" | "KneelDown" | "AirDamaged" | "Down" | "Stunned" | "Dead";
@@ -7,6 +10,7 @@ interface Vec2 { x: number; y: number; }
 
 export interface AttackSpec {
   id: string;
+  motionId: MotionId;
   name: string;
   damage: number;
   range: number;
@@ -17,6 +21,30 @@ export interface AttackSpec {
   guardPierce: boolean;
   movement?: number;
   invulnerable?: boolean;
+}
+
+export interface CharacterVisualProfile {
+  renderer: "script";
+  scale: number;
+  groundOffset: number;
+}
+
+export interface CharacterRig<Node = unknown> {
+  getBone(name: HumanoidBoneName): Node | null;
+  getSocket(name: AttachmentSocket): Node | null;
+}
+
+export interface EquipmentAttachment<Node = unknown> {
+  socket: AttachmentSocket;
+  object: Node;
+  position?: [number, number, number];
+  rotation?: [number, number, number];
+  scale?: number;
+}
+
+export interface EquipmentVisualDefinition<Node = unknown> {
+  attachments: EquipmentAttachment<Node>[];
+  motions?: { equipped?: MotionId; drop?: MotionId; pickup?: MotionId };
 }
 
 export interface SkillSpec extends AttackSpec {
@@ -40,6 +68,7 @@ export interface CharacterUiDefinition {
 
 export interface CharacterDefinition<Id extends string = string> {
   id: Id;
+  visualProfile: CharacterVisualProfile;
   ui: CharacterUiDefinition;
   combo: AttackSpec[];
   barehandCombo: AttackSpec[];
@@ -77,7 +106,7 @@ export interface CharacterBehaviorHooks {
 
 export interface CharacterVisualFactory {
   palette: Record<string, number> & { glow: number };
-  createEquipment: (slot: EquipmentSlot, context: unknown) => unknown;
+  createEquipment: (slot: EquipmentSlot, context: unknown) => EquipmentVisualDefinition;
   createFieldItem: (slot: EquipmentSlot, context: unknown) => unknown;
 }
 
