@@ -23,10 +23,6 @@ export function createEquipment(characterId: CharacterId, ownerPlayerId: string)
         cooldownMs: skill.cooldownMs,
         guardPierce: skill.guardPierce
       };
-      if (slot === "weapon") {
-        item.normalAttackSetId = `${characterId}_combo`;
-        item.holdAttackId = `${characterId}_hold`;
-      }
       return [slot, item];
     })
   ) as Record<EquipmentSlot, EquipmentItem>;

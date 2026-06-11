@@ -73,8 +73,6 @@ export interface EquipmentItem {
   originCharacterId: CharacterId;
   slot: EquipmentSlot;
   skillId?: SkillId;
-  normalAttackSetId?: string;
-  holdAttackId?: string;
   cooldownRemainingMs: number;
   cooldownMs: number;
   guardPierce: boolean;
