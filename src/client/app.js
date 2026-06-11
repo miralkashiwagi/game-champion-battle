@@ -29,6 +29,10 @@ const characters = {
 
 const slotLabels = { cloak: "外套", head: "兜", armor: "鎧", weapon: "武器" };
 const slotGlyphs = { cloak: "◆", head: "●", armor: "⬟", weapon: "†" };
+const equipmentOrigins = {
+  silver_knight: { badge: "SK", label: "Silver Knight" },
+  saladin: { badge: "SA", label: "Saladin" }
+};
 const reasonLabels = {
   death: "相手を撃破",
   simultaneous_death: "同時撃破",
@@ -241,8 +245,8 @@ screen.addEventListener("click", (event) => {
   const target = event.target.closest("[data-action]");
   if (!target) return;
   const action = target.dataset.action;
-  if (action === "title") setScreen("title");
-  if (action === "lobby") setScreen("lobby");
+  if (action === "title") leaveMatch("title");
+  if (action === "lobby") leaveMatch("lobby");
   if (action === "select") {
     state.pendingCharacterId = state.characterId;
     setScreen("select");
@@ -265,6 +269,17 @@ screen.addEventListener("click", (event) => {
     setScreen("lobby");
   }
 });
+
+function leaveMatch(nextScreen) {
+  const ws = state.ws;
+  state.ws = null;
+  ws?.close();
+  state.roomId = null;
+  state.snapshot = null;
+  state.localSide = null;
+  state.keys.clear();
+  setScreen(nextScreen);
+}
 
 async function startMatch() {
   const previousSocket = state.ws;
@@ -381,7 +396,9 @@ function equipmentHud(player) {
   return ["cloak", "head", "armor", "weapon"].map((slot, index) => {
     const item = player.equipment[slot];
     const cooldown = item ? Math.ceil(item.cooldownRemainingMs / 1000) : 0;
-    return `<div class="equipment-slot ${item ? "" : "off"} ${cooldown ? "cooling" : ""}" data-cd="${cooldown || ""}"><div class="slot-icon">${slotGlyphs[slot]}</div><div class="slot-label">${index + 1} ${slotLabels[slot]}</div></div>`;
+    const origin = item ? equipmentOrigins[item.originCharacterId] : null;
+    const originClass = item ? `origin-${item.originCharacterId}` : "";
+    return `<div class="equipment-slot ${originClass} ${item ? "" : "off"} ${cooldown ? "cooling" : ""}" data-cd="${cooldown || ""}" title="${origin?.label || "装備なし"}"><span class="origin-badge">${origin?.badge || "--"}</span><div class="slot-icon">${slotGlyphs[slot]}</div><div class="slot-label">${index + 1} ${slotLabels[slot]}</div></div>`;
   }).join("");
 }
 

@@ -344,12 +344,25 @@ function makeFieldItem(slot, characterId) {
   group.userData.phase = Math.random() * Math.PI * 2;
   const material = std(color, .55, .34);
   let item;
-  if (slot === "weapon") item = new THREE.Mesh(new THREE.BoxGeometry(.12, .9, .1), material);
-  else if (slot === "head") item = new THREE.Mesh(new THREE.CylinderGeometry(.24, .3, .32, 6), material);
-  else if (slot === "armor") item = new THREE.Mesh(new THREE.BoxGeometry(.55, .48, .24), material);
-  else item = new THREE.Mesh(new THREE.ConeGeometry(.38, .68, 5), material);
-  item.castShadow = true;
-  group.add(item);
+  if (slot === "weapon" && characterId === "saladin") {
+    for (const side of [-1, 1]) {
+      item = new THREE.Mesh(new THREE.BoxGeometry(.08, .72, .07), material);
+      item.position.x = side * .12;
+      item.rotation.z = side * .28;
+      item.castShadow = true;
+      group.add(item);
+    }
+  } else {
+    if (slot === "weapon") item = new THREE.Mesh(new THREE.BoxGeometry(.13, 1, .1), material);
+    else if (slot === "head" && characterId === "saladin") item = new THREE.Mesh(new THREE.SphereGeometry(.29, 10, 6, 0, Math.PI * 2, 0, Math.PI / 2), material);
+    else if (slot === "head") item = new THREE.Mesh(new THREE.CylinderGeometry(.24, .3, .36, 6), material);
+    else if (slot === "armor" && characterId === "saladin") item = new THREE.Mesh(new THREE.CylinderGeometry(.25, .34, .5, 8), material);
+    else if (slot === "armor") item = new THREE.Mesh(new THREE.BoxGeometry(.62, .54, .28), material);
+    else if (characterId === "saladin") item = new THREE.Mesh(new THREE.ConeGeometry(.34, .82, 4, 1, true), material);
+    else item = new THREE.Mesh(new THREE.BoxGeometry(.62, .7, .05), material);
+    item.castShadow = true;
+    group.add(item);
+  }
   return group;
 }
 
