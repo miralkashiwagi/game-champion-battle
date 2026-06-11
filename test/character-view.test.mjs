@@ -49,7 +49,38 @@ test("キャラクター別の判定表示を切り替えられる", () => {
   saladin.setCollisionDebug(true);
   assert.equal(silver.hurtboxView.visible, true);
   assert.equal(saladin.hurtboxView.visible, true);
-  assert.ok(silver.profile.collision.halfWidth > saladin.profile.collision.halfWidth);
+  assert.ok(silver.registration.definition.collision.halfWidth > saladin.registration.definition.collision.halfWidth);
+  silver.dispose();
+  saladin.dispose();
+});
+
+test("攻撃判定表示はデバッグ有効時だけ表示される", () => {
+  const view = new ProceduralCharacterView("silver_knight");
+  const snapshot = {
+    state: "AttackActive",
+    facing: 1,
+    worldY: 0,
+    activeActionId: "silver_slash",
+    actionStartedFrame: 4,
+    snapshotFrame: 8
+  };
+  view.update(snapshot, 1 / 60, 1);
+  assert.equal(view.hitboxView.visible, false);
+  view.setCollisionDebug(true);
+  view.update(snapshot, 1 / 60, 1);
+  assert.equal(view.hitboxView.visible, true);
+  view.setCollisionDebug(false);
+  view.update(snapshot, 1 / 60, 1);
+  assert.equal(view.hitboxView.visible, false);
+  view.dispose();
+});
+
+test("キャラクター固有モーションはVisual登録から解決される", () => {
+  const silver = new ProceduralCharacterView("silver_knight");
+  const saladin = new ProceduralCharacterView("saladin");
+  assert.equal(silver.motionPlayer.motionController, silver.visual.scriptModel.motionController);
+  assert.equal(saladin.motionPlayer.motionController, saladin.visual.scriptModel.motionController);
+  assert.notEqual(silver.motionPlayer.motionController, saladin.motionPlayer.motionController);
   silver.dispose();
   saladin.dispose();
 });

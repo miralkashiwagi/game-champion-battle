@@ -221,7 +221,7 @@ export class MatchSimulation {
     }
 
     player.velocity.y += GRAVITY;
-    const halfWidth = CHARACTER_REGISTRY[player.characterId].definition.visualProfile.collision.halfWidth;
+    const halfWidth = CHARACTER_REGISTRY[player.characterId].definition.collision.halfWidth;
     player.position.x = clamp(player.position.x + player.velocity.x, halfWidth, STAGE_WIDTH - halfWidth);
     player.position.y += player.velocity.y;
     if (player.position.y >= GROUND_Y) {
@@ -238,7 +238,7 @@ export class MatchSimulation {
       const total = player.activeAttack.spec.startupFrames + player.activeAttack.spec.activeFrames + player.activeAttack.spec.recoveryFrames;
       const move = player.activeAttack.spec.movement ?? 0;
       if (move && player.attackTimer <= player.activeAttack.spec.startupFrames + player.activeAttack.spec.activeFrames) {
-        const halfWidth = CHARACTER_REGISTRY[player.characterId].definition.visualProfile.collision.halfWidth;
+        const halfWidth = CHARACTER_REGISTRY[player.characterId].definition.collision.halfWidth;
         player.position.x = clamp(player.position.x + (move / Math.max(1, player.activeAttack.spec.activeFrames + player.activeAttack.spec.startupFrames)) * player.facing, halfWidth, STAGE_WIDTH - halfWidth);
       }
       if (player.attackTimer >= total) {
@@ -272,7 +272,7 @@ export class MatchSimulation {
     attacker.state = localTimer < active.spec.startupFrames ? "AttackStartup" : isActive ? "AttackActive" : "AttackRecovery";
     if (!isActive) return;
     if (defender.invulnerableUntilFrame >= this.frame || defender.state === "Dead") return;
-    const defenderCollision = CHARACTER_REGISTRY[defender.characterId].definition.visualProfile.collision;
+    const defenderCollision = CHARACTER_REGISTRY[defender.characterId].definition.collision;
     const horizontalReach = active.spec.range + defenderCollision.halfWidth;
     if (Math.abs(attacker.position.x - defender.position.x) > horizontalReach) return;
     if (Math.abs(attacker.position.y - defender.position.y) > defenderCollision.height) return;

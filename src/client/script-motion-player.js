@@ -4,12 +4,32 @@ const STATE_MOTIONS = {
   Stunned: "stunned", Dead: "dead"
 };
 
+const DEFAULT_STATE_STYLE = {
+  moveSpeed: 8,
+  idleBob: .026,
+  idleLean: .015,
+  idleArmSpread: .08,
+  idleLegSpread: .06,
+  moveBob: .06,
+  moveLean: .04,
+  moveTwist: .035,
+  moveStride: .58,
+  moveArmSwing: .3,
+  guardLean: .08,
+  guardTwist: .04,
+  guardLeftArmX: -1.12,
+  guardLeftArmZ: -.4,
+  guardRightArmX: -.25,
+  guardRightArmZ: -.12
+};
+
 export class ScriptMotionPlayer {
-  constructor(characterId, rig, visualRoot, attackSpecs) {
-    this.characterId = characterId;
+  constructor(rig, visualRoot, attackSpecs, motionController) {
     this.rig = rig;
     this.visualRoot = visualRoot;
     this.attackSpecs = attackSpecs;
+    this.motionController = motionController;
+    this.stateStyle = { ...DEFAULT_STATE_STYLE, ...motionController.stateStyle };
     this.baseVisualY = visualRoot.position.y;
     this.baseChestY = rig.getBone("chest").position.y;
     this.time = Math.random() * 10;
@@ -40,32 +60,32 @@ export class ScriptMotionPlayer {
   }
 
   applyState(motionId) {
-    const b = bones(this.rig);
-    const agile = this.characterId === "saladin";
-    const phase = this.time * (motionId === "move" ? (agile ? 11 : 8) : 2.3);
+    const b = getRigBones(this.rig);
+    const style = this.stateStyle;
+    const phase = this.time * (motionId === "move" ? style.moveSpeed : 2.3);
     if (motionId === "idle") {
-      b.chest.position.y += Math.sin(phase) * (agile ? .018 : .026);
-      b.chest.rotation.x = agile ? -.055 : .015;
-      b.leftArm.rotation.z = agile ? -.16 : -.08;
-      b.rightArm.rotation.z = agile ? .16 : .08;
-      b.leftLeg.rotation.z = agile ? -.035 : -.06;
-      b.rightLeg.rotation.z = agile ? .035 : .06;
+      b.chest.position.y += Math.sin(phase) * style.idleBob;
+      b.chest.rotation.x = style.idleLean;
+      b.leftArm.rotation.z = -style.idleArmSpread;
+      b.rightArm.rotation.z = style.idleArmSpread;
+      b.leftLeg.rotation.z = -style.idleLegSpread;
+      b.rightLeg.rotation.z = style.idleLegSpread;
     } else if (motionId === "move") {
       const stride = Math.sin(phase);
-      b.chest.position.y += Math.abs(stride) * (agile ? .045 : .06);
-      b.chest.rotation.x = agile ? -.12 : .04;
-      b.chest.rotation.y = stride * (agile ? .08 : .035);
-      b.leftLeg.rotation.x = stride * (agile ? .82 : .58);
-      b.rightLeg.rotation.x = -stride * (agile ? .82 : .58);
-      b.leftArm.rotation.x = -stride * (agile ? .48 : .3);
-      b.rightArm.rotation.x = stride * (agile ? .48 : .3);
+      b.chest.position.y += Math.abs(stride) * style.moveBob;
+      b.chest.rotation.x = style.moveLean;
+      b.chest.rotation.y = stride * style.moveTwist;
+      b.leftLeg.rotation.x = stride * style.moveStride;
+      b.rightLeg.rotation.x = -stride * style.moveStride;
+      b.leftArm.rotation.x = -stride * style.moveArmSwing;
+      b.rightArm.rotation.x = stride * style.moveArmSwing;
     } else if (motionId === "guard") {
-      b.chest.rotation.x = agile ? -.14 : .08;
-      b.chest.rotation.y = agile ? -.12 : .04;
-      b.leftArm.rotation.x = agile ? -.72 : -1.12;
-      b.leftArm.rotation.z = agile ? -.62 : -.4;
-      b.rightArm.rotation.x = agile ? -.58 : -.25;
-      b.rightArm.rotation.z = agile ? .42 : -.12;
+      b.chest.rotation.x = style.guardLean;
+      b.chest.rotation.y = style.guardTwist;
+      b.leftArm.rotation.x = style.guardLeftArmX;
+      b.leftArm.rotation.z = style.guardLeftArmZ;
+      b.rightArm.rotation.x = style.guardRightArmX;
+      b.rightArm.rotation.z = style.guardRightArmZ;
       b.leftLeg.rotation.z = -.14;
       b.rightLeg.rotation.z = .14;
     } else if (motionId === "hit") {
@@ -99,106 +119,13 @@ export class ScriptMotionPlayer {
 
   applyAttack(snapshot) {
     const id = snapshot.activeActionId;
-    const spec = this.attackSpecs.get(id);
-    const phase = attackPhase(snapshot, spec);
-    const b = bones(this.rig);
-    if (id.startsWith("barehand_")) return this.punch(b, id, phase);
-    if (this.characterId === "silver_knight") this.silverAttack(b, id, phase);
-    else this.saladinAttack(b, id, phase);
-  }
-
-  silverAttack(b, id, phase) {
-    const windup = phase.pose;
-    const strike = phase.strike;
-    b.leftLeg.rotation.z = -.14;
-    b.rightLeg.rotation.z = .14;
-    if (id === "silver_body_charge") {
-      b.chest.position.y -= .18 * windup;
-      b.chest.rotation.x = .38 * windup - .58 * strike;
-      b.leftArm.rotation.x = -.78;
-      b.rightArm.rotation.x = -.88;
-      this.visualRoot.position.z = .32 * strike;
+    const phase = getAttackPhase(snapshot, this.attackSpecs.get(id));
+    const rigBones = getRigBones(this.rig);
+    if (id.startsWith("barehand_")) {
+      applyPunch(rigBones, id, phase);
       return;
     }
-    if (id === "silver_thrust") {
-      b.chest.rotation.y = -.42 * windup + .46 * strike;
-      b.rightArm.rotation.x = -.35 - 1.25 * strike;
-      b.rightArm.rotation.z = -.34;
-      b.leftArm.rotation.x = -1.02;
-      this.visualRoot.position.z = .2 * strike;
-      return;
-    }
-    if (id === "silver_headbutt") {
-      b.chest.position.y -= .1 * windup;
-      b.chest.rotation.x = .24 * windup - .62 * strike;
-      b.head.rotation.x = -.18 * windup + .38 * strike;
-      this.visualRoot.position.z = .14 * strike;
-      return;
-    }
-    const step = Number(id.match(/_(\d)$/)?.[1] || 1);
-    const reverse = step % 2 === 0;
-    const rising = step === 4 || id === "silver_guard_counter";
-    b.chest.rotation.y = (reverse ? -.5 : .5) * (strike - windup * .55);
-    b.rightArm.rotation.x = (reverse ? -1.15 : 1.2) * strike + (reverse ? .55 : -.55) * windup;
-    b.rightArm.rotation.z = rising ? -.95 * strike : -.52;
-    b.leftArm.rotation.x = -1.02;
-    b.leftLeg.rotation.x = -.18 * strike;
-    b.rightLeg.rotation.x = .16 * strike;
-    if (id === "silver_slash") this.visualRoot.rotation.y = strike * .35;
-  }
-
-  saladinAttack(b, id, phase) {
-    const windup = phase.pose;
-    const strike = phase.strike;
-    b.chest.rotation.x = -.12;
-    b.leftLeg.rotation.z = -.1;
-    b.rightLeg.rotation.z = .1;
-    if (id === "saladin_spiral_kick") {
-      this.visualRoot.rotation.y = strike * 1.6;
-      b.chest.rotation.y = .55 * windup - 1.1 * strike;
-      b.rightLeg.rotation.x = -1.48 * strike;
-      b.rightLeg.rotation.z = -.82 * strike;
-      b.leftArm.rotation.z = -.7;
-      b.rightArm.rotation.z = .7;
-      return;
-    }
-    if (id === "saladin_windwall") {
-      this.visualRoot.rotation.y = strike * Math.PI * 2;
-      b.leftArm.rotation.z = -.95;
-      b.rightArm.rotation.z = .95;
-      b.leftLeg.rotation.z = -.18;
-      b.rightLeg.rotation.z = .18;
-      return;
-    }
-    if (id === "saladin_spin") {
-      this.visualRoot.rotation.y = strike * Math.PI * 2;
-      b.leftArm.rotation.x = -1.05;
-      b.rightArm.rotation.x = 1.05;
-      b.leftArm.rotation.z = -.68;
-      b.rightArm.rotation.z = .68;
-      b.chest.position.y -= .08 * windup;
-      return;
-    }
-    const step = Number(id.match(/_(\d)$/)?.[1] || 1);
-    const reverse = step % 2 === 0 || id === "saladin_guard_counter";
-    const crossing = id === "saladin_lunar_slash" || id === "saladin_forward_cut" || id === "saladin_guard_counter";
-    b.chest.rotation.y = (reverse ? -.62 : .62) * (strike - windup * .6);
-    b.leftArm.rotation.x = (reverse ? .45 : -1.15) * strike;
-    b.rightArm.rotation.x = (reverse ? -1.15 : .45) * strike;
-    b.leftArm.rotation.z = -.5;
-    b.rightArm.rotation.z = .5;
-    b.leftLeg.rotation.x = -.28 * strike;
-    b.rightLeg.rotation.x = .26 * strike;
-    this.visualRoot.position.z = (crossing ? .28 : .1) * strike;
-    if (id === "saladin_lunar_slash") this.visualRoot.rotation.y = strike * .22 * (reverse ? -1 : 1);
-  }
-
-  punch(b, id, phase) {
-    const left = id.endsWith("_2");
-    const arm = left ? b.leftArm : b.rightArm;
-    arm.rotation.x = -1.3 * phase.strike;
-    arm.rotation.z = (left ? .35 : -.35) * phase.pose;
-    b.chest.rotation.y = (left ? -.22 : .22) * phase.strike;
+    this.motionController.applyAttack({ id, phase, bones: rigBones, visualRoot: this.visualRoot });
   }
 
   applyPickupOverlay() {
@@ -208,7 +135,7 @@ export class ScriptMotionPlayer {
   }
 }
 
-function bones(rig) {
+export function getRigBones(rig) {
   return {
     chest: rig.getBone("chest"), head: rig.getBone("head"),
     leftArm: rig.getBone("leftUpperArm"), rightArm: rig.getBone("rightUpperArm"),
@@ -216,7 +143,7 @@ function bones(rig) {
   };
 }
 
-function attackPhase(snapshot, spec) {
+export function getAttackPhase(snapshot, spec) {
   const elapsed = Math.max(0, (snapshot.snapshotFrame ?? snapshot.actionStartedFrame) - snapshot.actionStartedFrame);
   const startup = Math.max(1, spec?.startupFrames || 1);
   const active = Math.max(1, spec?.activeFrames || 1);
@@ -225,6 +152,14 @@ function attackPhase(snapshot, spec) {
   if (elapsed < startup + active) return { pose: 1, strike: smooth((elapsed - startup) / Math.max(1, active * .45)) };
   const release = 1 - smooth((elapsed - startup - active) / recovery);
   return { pose: release, strike: release };
+}
+
+function applyPunch(bones, id, phase) {
+  const left = id.endsWith("_2");
+  const arm = left ? bones.leftArm : bones.rightArm;
+  arm.rotation.x = -1.3 * phase.strike;
+  arm.rotation.z = (left ? .35 : -.35) * phase.pose;
+  bones.chest.rotation.y = (left ? -.22 : .22) * phase.strike;
 }
 
 function smooth(value) {

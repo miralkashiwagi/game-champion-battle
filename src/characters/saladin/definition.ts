@@ -3,13 +3,8 @@ import { BAREHAND_COMBO } from "../common.ts";
 
 export const definition = {
   id: "saladin",
-  visualProfile: {
-    renderer: "script",
-    scale: 1,
-    groundOffset: 0,
-    proportions: { shoulderWidth: .9, torsoHeight: 1.04, torsoDepth: .82, legLength: 1.1, headScale: .96 },
-    collision: { halfWidth: 39, height: 102 }
-  },
+  collision: { halfWidth: 39, height: 102 },
+  visualProfile: { renderer: "script", scale: 1, groundOffset: 0 },
   ui: {
     name: "Saladin",
     type: "近距離・攻撃型",

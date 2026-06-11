@@ -27,17 +27,11 @@ export interface CharacterVisualProfile {
   renderer: "script";
   scale: number;
   groundOffset: number;
-  proportions: {
-    shoulderWidth: number;
-    torsoHeight: number;
-    torsoDepth: number;
-    legLength: number;
-    headScale: number;
-  };
-  collision: {
-    halfWidth: number;
-    height: number;
-  };
+}
+
+export interface CharacterCollisionDefinition {
+  halfWidth: number;
+  height: number;
 }
 
 export interface CharacterRig<Node = unknown> {
@@ -56,6 +50,11 @@ export interface EquipmentAttachment<Node = unknown> {
 export interface EquipmentVisualDefinition<Node = unknown> {
   attachments: EquipmentAttachment<Node>[];
   motions?: { equipped?: MotionId; drop?: MotionId; pickup?: MotionId };
+}
+
+export interface ScriptMotionController {
+  stateStyle: Record<string, number>;
+  applyAttack: (context: unknown) => void;
 }
 
 export interface SkillSpec extends AttackSpec {
@@ -79,6 +78,7 @@ export interface CharacterUiDefinition {
 
 export interface CharacterDefinition<Id extends string = string> {
   id: Id;
+  collision: CharacterCollisionDefinition;
   visualProfile: CharacterVisualProfile;
   ui: CharacterUiDefinition;
   combo: AttackSpec[];
@@ -117,6 +117,18 @@ export interface CharacterBehaviorHooks {
 
 export interface CharacterVisualFactory {
   palette: Record<string, number> & { glow: number };
+  scriptModel: {
+    proportions: {
+      shoulderWidth: number;
+      torsoHeight: number;
+      torsoDepth: number;
+      legLength: number;
+      headScale: number;
+      limbWidth: number;
+    };
+    upperArmMaterial: "cloth" | "metal";
+    motionController: ScriptMotionController;
+  };
   createEquipment: (slot: EquipmentSlot, context: unknown) => EquipmentVisualDefinition;
   createFieldItem: (slot: EquipmentSlot, context: unknown) => unknown;
 }

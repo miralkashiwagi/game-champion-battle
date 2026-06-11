@@ -23,6 +23,7 @@ export class ProceduralCharacterView {
     this.characterId = characterId;
     this.registration = CHARACTER_REGISTRY[characterId];
     this.visual = this.registration.visual;
+    this.scriptModel = this.visual.scriptModel;
     this.palette = this.visual.palette;
     this.profile = this.registration.definition.visualProfile;
     this.root = new THREE.Group();
@@ -38,7 +39,7 @@ export class ProceduralCharacterView {
 
   build() {
     const p = this.palette;
-    const shape = this.profile.proportions;
+    const shape = this.scriptModel.proportions;
     const cloth = material(p.cloth, .68);
     const clothDark = material(p.clothDark, .72);
     const steel = material(p.metal, .84, .34);
@@ -61,14 +62,14 @@ export class ProceduralCharacterView {
     head.position.y = .72 * shape.torsoHeight;
     head.scale.setScalar(shape.headScale);
     chest.add(head);
-    const agile = this.characterId === "saladin";
-    const leftArm = makeLimb(agile ? cloth : steel, clothDark, -1, agile ? .92 : 1);
-    const rightArm = makeLimb(agile ? cloth : steel, clothDark, 1, agile ? .92 : 1);
+    const upperArmMaterial = this.scriptModel.upperArmMaterial === "cloth" ? cloth : steel;
+    const leftArm = makeLimb(upperArmMaterial, clothDark, -1, shape.limbWidth);
+    const rightArm = makeLimb(upperArmMaterial, clothDark, 1, shape.limbWidth);
     leftArm.position.set(-.5 * shape.shoulderWidth, .25, 0);
     rightArm.position.set(.5 * shape.shoulderWidth, .25, 0);
     chest.add(leftArm, rightArm);
-    const leftLeg = makeLeg(darkSteel, clothDark, agile ? .86 : 1);
-    const rightLeg = makeLeg(darkSteel, clothDark, agile ? .86 : 1);
+    const leftLeg = makeLeg(darkSteel, clothDark, shape.limbWidth);
+    const rightLeg = makeLeg(darkSteel, clothDark, shape.limbWidth);
     leftLeg.position.set(-.23, -.38, 0);
     rightLeg.position.set(.23, -.38, 0);
     leftLeg.scale.y = shape.legLength;
@@ -93,7 +94,7 @@ export class ProceduralCharacterView {
     }, sockets);
     this.visualRoot.scale.setScalar(this.profile.scale);
     this.visualRoot.position.y = this.profile.groundOffset;
-    this.motionPlayer = new ScriptMotionPlayer(this.characterId, this.rig, this.visualRoot, collectAttackSpecs());
+    this.motionPlayer = new ScriptMotionPlayer(this.rig, this.visualRoot, collectAttackSpecs(), this.scriptModel.motionController);
     this.buildCollisionVisuals();
 
     const shadow = mesh(new THREE.CircleGeometry(.72, 24), new THREE.MeshBasicMaterial({ color: 0x05080b, transparent: true, opacity: .32, depthWrite: false }));
@@ -103,7 +104,7 @@ export class ProceduralCharacterView {
   }
 
   buildCollisionVisuals() {
-    const collision = this.profile.collision;
+    const collision = this.registration.definition.collision;
     const worldWidth = collision.halfWidth / 78;
     const worldHeight = collision.height / 78;
     const cyan = new THREE.MeshBasicMaterial({ color: 0x2de7ff, transparent: true, opacity: .2, depthWrite: false, depthTest: false, wireframe: false });
@@ -217,7 +218,7 @@ export class ProceduralCharacterView {
     this.motionPlayer.update(snapshot, delta, elapsed);
     const attacking = snapshot?.state === "AttackActive" && snapshot?.activeActionId;
     const thrusting = /thrust|charge|headbutt|forward_cut|guard_counter|lunar/.test(snapshot?.activeActionId || "");
-    this.hitboxView.visible = Boolean(attacking);
+    this.hitboxView.visible = Boolean(this.collisionDebug && attacking);
     this.hitboxSweep.visible = !thrusting;
     this.hitboxThrust.visible = thrusting;
   }
