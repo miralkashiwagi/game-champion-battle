@@ -1,5 +1,8 @@
 export const TICK_RATE = 60;
 export const TICK_MS = 1000 / TICK_RATE;
+export const SNAPSHOT_RATE = 20;
+export const SNAPSHOT_EVERY_TICKS = TICK_RATE / SNAPSHOT_RATE;
+export const REMATCH_WINDOW_MS = 15_000;
 export const MATCH_TIME_MS = 180_000;
 export const INITIAL_HP = 100;
 export const STAGE_WIDTH = 1280;

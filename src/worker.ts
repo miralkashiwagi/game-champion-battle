@@ -1,8 +1,9 @@
 import { MatchDurableObject } from "./match-object.ts";
+import { MatchmakerDurableObject } from "./matchmaker-object.ts";
 import { normalizeCharacterId } from "./characters/registry.ts";
 import type { Env } from "./shared/types.ts";
 
-export { MatchDurableObject };
+export { MatchDurableObject, MatchmakerDurableObject };
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
@@ -18,14 +19,20 @@ export default {
       const characterId = normalizeCharacterId(url.searchParams.get("characterId"));
       const bucket = Math.round(cp / 100) * 100;
       const roomId = `cp-${bucket}`;
-      return Response.json({ roomId, playerId, cp, characterId, wsPath: `/ws/${roomId}` });
+      const query = new URLSearchParams({ playerId, cp: String(cp), characterId });
+      return Response.json({ roomId, playerId, cp, characterId, wsPath: `/ws/matchmaker/${roomId}?${query}` });
     }
 
-    if (url.pathname.startsWith("/ws/")) {
-      const roomId = decodeURIComponent(url.pathname.slice("/ws/".length)) || "cp-1000";
+    if (url.pathname.startsWith("/ws/matchmaker/")) {
+      const roomId = decodeURIComponent(url.pathname.slice("/ws/matchmaker/".length)) || "cp-1000";
+      const id = env.MATCHMAKER_OBJECT.idFromName(roomId);
+      return env.MATCHMAKER_OBJECT.get(id).fetch(request);
+    }
+
+    if (url.pathname.startsWith("/ws/match/")) {
+      const roomId = decodeURIComponent(url.pathname.slice("/ws/match/".length));
       const id = env.MATCH_OBJECT.idFromName(roomId);
-      const stub = env.MATCH_OBJECT.get(id);
-      return stub.fetch(request);
+      return env.MATCH_OBJECT.get(id).fetch(request);
     }
 
     return env.ASSETS.fetch(request);

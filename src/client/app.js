@@ -34,8 +34,13 @@ const state = {
   pendingCharacterId: normalizeCharacterId(localStorage.getItem("cb.characterId")),
   ws: null,
   roomId: null,
-  cpAppliedRoomId: null,
+  cpAppliedRoundKey: null,
   resultPreviousCp: null,
+  rematchDeadline: null,
+  rematchRequestedPlayerIds: [],
+  rematchRequested: false,
+  rematchAvailable: true,
+  notice: "",
   snapshot: null,
   localSide: null,
   keys: new Set(),
@@ -67,13 +72,16 @@ const keyMap = {
 window.addEventListener("keydown", (event) => {
   if (!keyMap[event.code]) return;
   event.preventDefault();
+  const changed = !state.keys.has(event.code);
   state.keys.add(event.code);
+  if (changed) sendCurrentInput();
 });
 
 window.addEventListener("keyup", (event) => {
   if (!keyMap[event.code]) return;
   event.preventDefault();
-  state.keys.delete(event.code);
+  const changed = state.keys.delete(event.code);
+  if (changed) sendCurrentInput();
 });
 
 function setScreen(next) {
@@ -116,6 +124,7 @@ function renderScreen() {
         <section class="panel panel-pad action-menu">
           <div class="row"><span class="muted">現在CP</span><strong class="cp-number">${state.cp}</strong></div>
           <div class="divider"></div>
+          ${state.notice ? `<p class="status">${state.notice}</p>` : ""}
           <button class="button primary" data-action="match">マッチング開始</button>
           <button class="button" data-action="select">キャラ変更</button>
           <button class="button ghost" data-action="detail">スキル確認</button>
@@ -205,6 +214,15 @@ function renderScreen() {
     const delta = result && state.localSide ? result.cpDelta[state.localSide] : 0;
     const outcome = !result || result.winner === "draw" ? "DRAW" : result.winner === state.localSide ? "WIN" : "LOSE";
     const before = state.resultPreviousCp ?? state.cp - delta;
+    const remaining = state.rematchDeadline ? Math.max(0, Math.ceil((state.rematchDeadline - Date.now()) / 1000)) : 0;
+    const opponentRequested = state.rematchRequestedPlayerIds.some((id) => id !== state.playerId);
+    const rematchText = !state.rematchAvailable
+      ? "再戦受付は終了しました"
+      : state.rematchRequested
+        ? `対戦相手の返答を待っています（残り ${remaining}秒）`
+        : opponentRequested
+          ? `対戦相手が再戦を希望しています（残り ${remaining}秒）`
+          : `再戦受付中（残り ${remaining}秒）`;
     screen.className = "screen-layer result-screen";
     screen.innerHTML = `
       <div class="result-title ${outcome.toLowerCase()}">${outcome}</div>
@@ -212,8 +230,9 @@ function renderScreen() {
         <p>${outcome === "WIN" ? "勝利！" : outcome === "LOSE" ? "敗北" : "引き分け"}　<span class="muted">${reasonLabels[result?.reason] || "対戦終了"}</span></p>
         <div class="divider"></div>
         <div class="cp-change"><span>${before}</span><span>▶</span><strong>${state.cp}</strong><span class="cp-delta ${delta >= 0 ? "plus" : "minus"}">(${delta > 0 ? "+" : ""}${delta})</span></div>
+        <p class="status ${opponentRequested ? "online" : ""}">${rematchText}</p>
         <div class="result-actions">
-          <button class="button primary" data-action="match">再戦する</button>
+          <button class="button primary" data-action="match" ${state.rematchRequested ? "disabled" : ""}>${state.rematchAvailable ? "再戦する" : "新しい対戦相手を探す"}</button>
           <button class="button" data-action="lobby">ロビーに戻る</button>
           <button class="button ghost" data-action="title">タイトルに戻る</button>
         </div>
@@ -246,7 +265,10 @@ screen.addEventListener("click", (event) => {
     localStorage.setItem("cb.characterId", state.characterId);
     setScreen("lobby");
   }
-  if (action === "match") startMatch();
+  if (action === "match") {
+    if (state.screen === "result" && state.rematchAvailable && state.ws?.readyState === WebSocket.OPEN) requestRematch();
+    else startMatch();
+  }
   if (action === "cancel") {
     state.ws?.close();
     state.ws = null;
@@ -257,11 +279,13 @@ screen.addEventListener("click", (event) => {
 function leaveMatch(nextScreen) {
   const ws = state.ws;
   state.ws = null;
+  if (ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: "client.leave" }));
   ws?.close();
   state.roomId = null;
   state.snapshot = null;
   state.localSide = null;
   state.keys.clear();
+  state.rematchAvailable = false;
   setScreen(nextScreen);
 }
 
@@ -271,46 +295,18 @@ async function startMatch() {
   previousSocket?.close();
   state.snapshot = null;
   state.resultPreviousCp = null;
-  state.cpAppliedRoomId = null;
+  state.rematchDeadline = null;
+  state.rematchRequestedPlayerIds = [];
+  state.rematchRequested = false;
+  state.rematchAvailable = true;
+  state.notice = "";
   setScreen("matching");
   try {
     const response = await fetch(`/api/match?playerId=${encodeURIComponent(state.playerId)}&cp=${state.cp}&characterId=${state.characterId}`);
     if (!response.ok) throw new Error(`Match request failed: ${response.status}`);
     const match = await response.json();
     state.roomId = match.roomId;
-    const protocol = location.protocol === "https:" ? "wss:" : "ws:";
-    const ws = new WebSocket(`${protocol}//${location.host}${match.wsPath}`);
-    state.ws = ws;
-    ws.addEventListener("open", () => {
-      if (state.ws !== ws) return;
-      ws.send(JSON.stringify({ type: "client.hello", playerId: state.playerId, cp: state.cp, characterId: state.characterId }));
-      renderScreen();
-    });
-    ws.addEventListener("message", (event) => {
-      if (state.ws !== ws) return;
-      const message = JSON.parse(event.data);
-      if (message.type !== "server.snapshot") return;
-      state.snapshot = message;
-      if (message.localSide) state.localSide = message.localSide;
-      if (message.phase === "playing") {
-        if (state.screen !== "battle") setScreen("battle");
-        scene.setSnapshot(message, state.localSide);
-        renderBattleHud();
-      }
-      if (message.phase === "finished") {
-        applyCpDelta(message.result);
-        if (state.screen !== "result") setScreen("result");
-      }
-    });
-    ws.addEventListener("close", () => {
-      if (state.ws !== ws) return;
-      state.ws = null;
-      if (state.screen === "matching") setScreen("lobby");
-    });
-    ws.addEventListener("error", () => {
-      if (state.ws !== ws) return;
-      if (state.screen === "matching") setScreen("lobby");
-    });
+    connectSocket(match.wsPath, "matchmaker");
   } catch (error) {
     console.error(error);
     state.ws = null;
@@ -318,9 +314,96 @@ async function startMatch() {
   }
 }
 
-function applyCpDelta(result) {
-  if (!result || !state.localSide || state.cpAppliedRoomId === state.roomId) return;
-  state.cpAppliedRoomId = state.roomId;
+function connectSocket(wsPath, kind) {
+  const protocol = location.protocol === "https:" ? "wss:" : "ws:";
+  const ws = new WebSocket(`${protocol}//${location.host}${wsPath}`);
+  state.ws = ws;
+  ws.addEventListener("open", () => {
+    if (state.ws === ws) renderScreen();
+  });
+  ws.addEventListener("message", (event) => {
+    if (state.ws !== ws) return;
+    const message = JSON.parse(event.data);
+    handleServerMessage(message, ws);
+  });
+  ws.addEventListener("close", () => {
+    if (state.ws !== ws) return;
+    state.ws = null;
+    if (state.screen === "matching") setScreen("lobby");
+  });
+  ws.addEventListener("error", () => {
+    if (state.ws === ws && state.screen === "matching") setScreen("lobby");
+  });
+  if (kind === "match") state.roomId = wsPath.split("/").at(-1)?.split("?")[0] || state.roomId;
+}
+
+function handleServerMessage(message, ws) {
+  if (message.type === "server.match_found") {
+    state.ws = null;
+    ws.close();
+    state.roomId = message.matchId;
+    state.rematchRequested = false;
+    state.rematchAvailable = true;
+    connectSocket(message.wsPath, "match");
+    return;
+  }
+  if (message.type === "server.match_cancelled") {
+    state.notice = message.message;
+    state.ws = null;
+    ws.close();
+    setScreen("lobby");
+    return;
+  }
+  if (message.type === "server.rematch_status") {
+    state.rematchDeadline = message.deadline;
+    state.rematchRequestedPlayerIds = message.requestedPlayerIds;
+    state.rematchRequested = message.requestedPlayerIds.includes(state.playerId);
+    if (state.screen === "result") renderScreen();
+    return;
+  }
+  if (message.type === "server.rematch_unavailable") {
+    state.rematchAvailable = false;
+    if (state.rematchRequested) {
+      state.ws = null;
+      ws.close();
+      startMatch();
+    } else if (state.screen === "result") {
+      renderScreen();
+    }
+    return;
+  }
+  if (message.type !== "server.snapshot") return;
+  const previousRoundId = state.snapshot?.roundId;
+  state.snapshot = message;
+  if (message.localSide) state.localSide = message.localSide;
+  if (message.phase === "playing") {
+    if (previousRoundId !== message.roundId) {
+      state.resultPreviousCp = null;
+      state.rematchDeadline = null;
+      state.rematchRequestedPlayerIds = [];
+      state.rematchRequested = false;
+    }
+    if (state.screen !== "battle") setScreen("battle");
+    scene.setSnapshot(message, state.localSide);
+    renderBattleHud();
+  }
+  if (message.phase === "finished") {
+    applyCpDelta(message.result, message.matchId, message.roundId);
+    if (state.screen !== "result") setScreen("result");
+  }
+}
+
+function requestRematch() {
+  if (state.ws?.readyState !== WebSocket.OPEN) return;
+  state.rematchRequested = true;
+  state.ws.send(JSON.stringify({ type: "client.rematch" }));
+  renderScreen();
+}
+
+function applyCpDelta(result, matchId, roundId) {
+  const roundKey = `${matchId || state.roomId}:${roundId || 1}`;
+  if (!result || !state.localSide || state.cpAppliedRoundKey === roundKey) return;
+  state.cpAppliedRoundKey = roundKey;
   state.resultPreviousCp = state.cp;
   state.cp = Math.max(0, state.cp + result.cpDelta[state.localSide]);
   localStorage.setItem("cb.cp", String(state.cp));
@@ -345,11 +428,16 @@ function currentInput() {
   };
 }
 
-setInterval(() => {
+function sendCurrentInput() {
   if (state.ws?.readyState === WebSocket.OPEN && state.screen === "battle") {
     state.ws.send(JSON.stringify({ type: "client.input", input: currentInput() }));
   }
-}, 1000 / 60);
+}
+
+setInterval(sendCurrentInput, 1000);
+setInterval(() => {
+  if (state.screen === "result" && state.rematchAvailable) renderScreen();
+}, 250);
 
 function renderBattleHud() {
   const snapshot = state.snapshot;

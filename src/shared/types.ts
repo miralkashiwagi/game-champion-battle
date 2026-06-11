@@ -57,7 +57,15 @@ export interface ClientPing {
   now: number;
 }
 
-export type ClientMessage = ClientHello | ClientInput | ClientPing;
+export interface ClientRematch {
+  type: "client.rematch";
+}
+
+export interface ClientLeave {
+  type: "client.leave";
+}
+
+export type ClientMessage = ClientHello | ClientInput | ClientPing | ClientRematch | ClientLeave;
 
 export interface EquipmentItem {
   id: string;
@@ -108,8 +116,33 @@ export interface MatchSnapshot {
   timeRemainingMs: number;
   players: PlayerSnapshot[];
   fieldItems: FieldItem[];
+  matchId?: string;
+  roundId?: number;
   localSide?: PlayerSide;
   result?: MatchResult;
+}
+
+export interface MatchFoundMessage {
+  type: "server.match_found";
+  matchId: string;
+  wsPath: string;
+}
+
+export interface MatchCancelledMessage {
+  type: "server.match_cancelled";
+  reason: "rematch_started" | "another_match_started";
+  message: string;
+}
+
+export interface RematchStatusMessage {
+  type: "server.rematch_status";
+  deadline: number;
+  requestedPlayerIds: string[];
+}
+
+export interface RematchUnavailableMessage {
+  type: "server.rematch_unavailable";
+  message: string;
 }
 
 export interface MatchEvent {
@@ -140,7 +173,20 @@ export interface MatchResult {
   cpDelta: Record<PlayerSide, number>;
 }
 
-export type ServerMessage = MatchSnapshot | MatchEvent | ServerPong;
+export type ServerMessage =
+  | MatchSnapshot
+  | MatchEvent
+  | ServerPong
+  | MatchFoundMessage
+  | MatchCancelledMessage
+  | RematchStatusMessage
+  | RematchUnavailableMessage;
+
+export interface MatchPlayer {
+  playerId: string;
+  cp: number;
+  characterId: CharacterId;
+}
 
 export interface JoinRequest {
   playerId: string;
@@ -150,5 +196,6 @@ export interface JoinRequest {
 
 export interface Env {
   MATCH_OBJECT: DurableObjectNamespace;
+  MATCHMAKER_OBJECT: DurableObjectNamespace;
   ASSETS: Fetcher;
 }
