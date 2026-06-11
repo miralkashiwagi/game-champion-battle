@@ -1,9 +1,8 @@
 import { MatchDurableObject } from "./match-object.ts";
-import type { CharacterId, Env } from "./shared/types.ts";
+import { normalizeCharacterId } from "./characters/registry.ts";
+import type { Env } from "./shared/types.ts";
 
 export { MatchDurableObject };
-
-const CHARACTER_IDS = new Set<CharacterId>(["silver_knight", "saladin"]);
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
@@ -16,7 +15,7 @@ export default {
     if (url.pathname === "/api/match") {
       const playerId = url.searchParams.get("playerId") ?? crypto.randomUUID();
       const cp = clampNumber(Number(url.searchParams.get("cp") ?? 1000), 0, 9999);
-      const characterId = normalizeCharacter(url.searchParams.get("characterId"));
+      const characterId = normalizeCharacterId(url.searchParams.get("characterId"));
       const bucket = Math.round(cp / 100) * 100;
       const roomId = `cp-${bucket}`;
       return Response.json({ roomId, playerId, cp, characterId, wsPath: `/ws/${roomId}` });
@@ -32,10 +31,6 @@ export default {
     return env.ASSETS.fetch(request);
   }
 };
-
-function normalizeCharacter(value: string | null): CharacterId {
-  return value && CHARACTER_IDS.has(value as CharacterId) ? (value as CharacterId) : "silver_knight";
-}
 
 function clampNumber(value: number, min: number, max: number): number {
   if (!Number.isFinite(value)) return min;

@@ -1,6 +1,9 @@
-export type CharacterId = "silver_knight" | "saladin";
+import type { RegisteredCharacterId } from "../characters/registry.ts";
+import type { EquipmentSlot as CharacterEquipmentSlot } from "./character-types.ts";
+
+export type CharacterId = RegisteredCharacterId;
 export type PlayerSide = "p1" | "p2";
-export type EquipmentSlot = "cloak" | "head" | "armor" | "weapon";
+export type EquipmentSlot = CharacterEquipmentSlot;
 export type Facing = -1 | 1;
 export type MatchPhase = "waiting" | "countdown" | "playing" | "finished";
 export type CharacterState =
@@ -18,15 +21,7 @@ export type CharacterState =
   | "Stunned"
   | "Dead";
 
-export type SkillId =
-  | "silver_body_charge"
-  | "silver_headbutt"
-  | "silver_hard_guard"
-  | "silver_slash"
-  | "saladin_spin"
-  | "saladin_windwall"
-  | "saladin_spiral_kick"
-  | "saladin_lunar_slash";
+export type SkillId = string;
 
 export interface Vec2 {
   x: number;

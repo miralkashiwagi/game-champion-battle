@@ -14,6 +14,7 @@ import {
   STAGE_WIDTH,
   TICK_MS
 } from "../shared/constants.ts";
+import { CHARACTER_REGISTRY } from "../characters/registry.ts";
 import { attackForEquipment, CHARACTER_SPECS, createEquipment, type AttackSpec } from "../shared/characters.ts";
 import type {
   CharacterId,
@@ -79,7 +80,7 @@ export class MatchSimulation {
       invulnerableUntilFrame: 0,
       attackHeldFrames: 0
     });
-    this.push("joined", `${side} joined as ${CHARACTER_SPECS[characterId].name}`);
+    this.push("joined", `${side} joined as ${CHARACTER_SPECS[characterId].ui.name}`);
     if (this.players.size === 2) {
       this.phase = "playing";
       this.push("ready", "Match started");
@@ -168,7 +169,7 @@ export class MatchSimulation {
 
     const canAct = ["Idle", "Move", "Guard", "GuardCounterWindow"].includes(player.state);
     const headSkill = player.equipment.head ? attackForEquipment(player.equipment.head) : undefined;
-    if (headSkill?.id === "saladin_windwall" && input.skills.head && !player.previousInput.skills.head) {
+    if (headSkill?.usableWhileHit && input.skills.head && !player.previousInput.skills.head) {
       this.trySkill(player, opponent, "head", true);
     }
 
@@ -300,10 +301,8 @@ export class MatchSimulation {
         defender.state = "Hitstun";
         defender.stateTimer = 12;
       }
-      const hardGuard = defender.equipment.armor?.skillId === "silver_hard_guard";
-      if (hardGuard && defender.position.y >= GROUND_Y && spec.damage > 0) {
-        attacker.velocity.x = -attacker.facing * 7;
-      }
+      const armor = defender.equipment.armor;
+      if (armor) CHARACTER_REGISTRY[armor.originCharacterId].behavior.afterHitReceived?.({ attack: spec, attacker, defender, groundY: GROUND_Y });
     }
     this.push("hit", `${attacker.side} hit ${defender.side} with ${spec.name}`);
   }
@@ -381,15 +380,11 @@ export class MatchSimulation {
     if (!item || item.cooldownRemainingMs > 0) return;
     const spec = attackForEquipment(item);
     if (!spec) return;
-    const skill = CHARACTER_SPECS[item.originCharacterId].skills[slot];
+    const registration = CHARACTER_REGISTRY[item.originCharacterId];
+    const skill = spec;
     const canUse = force || ["Idle", "Move", "Guard", "GuardCounterWindow"].includes(player.state);
     if (!canUse || skill.passive) return;
-    if (skill.id === "saladin_windwall") {
-      player.state = "Idle";
-      player.stateTimer = 0;
-      opponent.state = "Hitstun";
-      opponent.stateTimer = 6;
-    }
+    registration.behavior.beforeSkill?.({ skill, player, opponent });
     this.startAttack(player, spec);
     item.cooldownRemainingMs = item.cooldownMs;
   }

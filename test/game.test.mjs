@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { MatchSimulation } from "../src/game/simulation.ts";
+import { CHARACTER_IDS, DEFAULT_CHARACTER_ID, normalizeCharacterId } from "../src/characters/registry.ts";
 
 const idleInput = (frame = 0) => ({
   frame,
@@ -115,4 +116,34 @@ test("時間切れはHP、装備数、引き分けの順に判定する", () => 
   sim3.tick();
   assert.equal(sim3.result.winner, "draw");
   assert.equal(sim3.result.reason, "timeout_draw");
+});
+
+test("キャラクターレジストリが登録順と不明IDのフォールバックを管理する", () => {
+  assert.deepEqual(CHARACTER_IDS, ["silver_knight", "saladin"]);
+  assert.equal(normalizeCharacterId("saladin"), "saladin");
+  assert.equal(normalizeCharacterId("unknown"), DEFAULT_CHARACTER_ID);
+});
+
+test("被撃中に使用可能な装備スキルはキャラクターフックを実行する", () => {
+  const sim = setup();
+  const [silver, saladin] = players(sim);
+  saladin.state = "Hitstun";
+  saladin.stateTimer = 30;
+  sim.setInput("p2", { ...idleInput(1), skills: { head: true } });
+  sim.tick();
+  assert.equal(saladin.attackName, "Windwall");
+  assert.equal(silver.state, "Hitstun");
+  assert.equal(silver.stateTimer, 6);
+});
+
+test("防具の被弾フックが攻撃側をノックバックする", () => {
+  const sim = setup();
+  const [silver, saladin] = players(sim);
+  silver.position.x = 500;
+  saladin.position.x = 560;
+  silver.facing = 1;
+  saladin.facing = -1;
+  sim.startAttack(saladin, { id: "hook-test", name: "hook-test", damage: 1, range: 90, startupFrames: 0, activeFrames: 2, recoveryFrames: 1, effect: "hitstun", guardPierce: true });
+  sim.tick();
+  assert.equal(saladin.velocity.x, 7);
 });

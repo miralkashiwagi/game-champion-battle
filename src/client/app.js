@@ -1,38 +1,22 @@
 import { ChampionScene } from "./scene.js";
-
-const characters = {
-  silver_knight: {
-    name: "Silver Knight",
-    type: "近距離・バランス型",
-    detail: "堅実な剣技と防御を備えた、攻守の均衡に優れる騎士。",
-    normal: "剣による4連撃。最終段で相手を打ち上げる。",
-    skills: [
-      ["外套", "ボディチャージ", "前進しながら相手を打ち上げる", "CTなし"],
-      ["兜", "ヘッドバット", "命中した相手を気絶させる", "CT 5秒"],
-      ["鎧", "ハードガード", "通常攻撃への防御を強化する", "常時効果"],
-      ["武器", "スラッシュ", "無敵を伴うガード貫通斬撃", "CT 20秒"]
-    ]
-  },
-  saladin: {
-    name: "Saladin",
-    type: "近距離・攻撃型",
-    detail: "機動力と連続攻撃に優れ、素早い切り返しを得意とする戦士。",
-    normal: "双剣による4連撃。前進しながら間合いを詰める。",
-    skills: [
-      ["外套", "スピンスラッシュ", "周囲を斬り払い相手を打ち上げる", "CT 5秒"],
-      ["兜", "ウィンドウォール", "被撃中にも使える緊急防御", "CT 20秒"],
-      ["鎧", "スパイラルキック", "ガードを崩す回転蹴り", "CT 10秒"],
-      ["武器", "ルナスラッシュ", "突進して相手を気絶させる", "CT 10秒"]
-    ]
-  }
-};
+import { CHARACTER_LIST, normalizeCharacterId } from "../characters/registry.ts";
 
 const slotLabels = { cloak: "外套", head: "兜", armor: "鎧", weapon: "武器" };
 const slotGlyphs = { cloak: "◆", head: "●", armor: "⬟", weapon: "†" };
-const equipmentOrigins = {
-  silver_knight: { badge: "SK", label: "Silver Knight" },
-  saladin: { badge: "SA", label: "Saladin" }
-};
+const characters = Object.fromEntries(CHARACTER_LIST.map(({ definition }) => [definition.id, {
+  ...definition.ui,
+  skills: Object.values(definition.skills).map((skill) => [
+    slotLabels[skill.slot],
+    skill.name,
+    skill.description,
+    skill.passive ? "常時効果" : skill.cooldownMs ? `CT ${skill.cooldownMs / 1000}秒` : "CTなし"
+  ])
+}]));
+const equipmentOrigins = Object.fromEntries(CHARACTER_LIST.map(({ definition }) => [definition.id, {
+  badge: definition.ui.badge,
+  label: definition.ui.name,
+  color: definition.ui.accentColor
+}]));
 const reasonLabels = {
   death: "相手を撃破",
   simultaneous_death: "同時撃破",
@@ -46,8 +30,8 @@ const state = {
   screen: "title",
   playerId: localStorage.getItem("cb.playerId") || crypto.randomUUID(),
   cp: Number(localStorage.getItem("cb.cp") || "1000"),
-  characterId: localStorage.getItem("cb.characterId") || "silver_knight",
-  pendingCharacterId: localStorage.getItem("cb.characterId") || "silver_knight",
+  characterId: normalizeCharacterId(localStorage.getItem("cb.characterId")),
+  pendingCharacterId: normalizeCharacterId(localStorage.getItem("cb.characterId")),
   ws: null,
   roomId: null,
   cpAppliedRoomId: null,
@@ -398,7 +382,8 @@ function equipmentHud(player) {
     const cooldown = item ? Math.ceil(item.cooldownRemainingMs / 1000) : 0;
     const origin = item ? equipmentOrigins[item.originCharacterId] : null;
     const originClass = item ? `origin-${item.originCharacterId}` : "";
-    return `<div class="equipment-slot ${originClass} ${item ? "" : "off"} ${cooldown ? "cooling" : ""}" data-cd="${cooldown || ""}" title="${origin?.label || "装備なし"}"><span class="origin-badge">${origin?.badge || "--"}</span><div class="slot-icon">${slotGlyphs[slot]}</div><div class="slot-label">${index + 1} ${slotLabels[slot]}</div></div>`;
+    const originStyle = origin ? `style="--origin-color:${origin.color}"` : "";
+    return `<div class="equipment-slot ${originClass} ${item ? "" : "off"} ${cooldown ? "cooling" : ""}" ${originStyle} data-cd="${cooldown || ""}" title="${origin?.label || "装備なし"}"><span class="origin-badge">${origin?.badge || "--"}</span><div class="slot-icon">${slotGlyphs[slot]}</div><div class="slot-label">${index + 1} ${slotLabels[slot]}</div></div>`;
   }).join("");
 }
 

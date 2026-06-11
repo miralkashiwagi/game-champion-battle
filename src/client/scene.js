@@ -1,5 +1,6 @@
 import * as THREE from "../../public/vendor/three.module.min.js";
-import { ProceduralCharacterView } from "./character-view.js";
+import { CHARACTER_IDS, DEFAULT_CHARACTER_ID } from "../characters/registry.ts";
+import { createFieldItemView, ProceduralCharacterView } from "./character-view.js";
 
 const STAGE_CENTER = 640;
 const WORLD_SCALE = 78;
@@ -22,7 +23,7 @@ export class ChampionScene {
     this.clock = new THREE.Clock();
     this.elapsed = 0;
     this.mode = "title";
-    this.selectedCharacterId = "silver_knight";
+    this.selectedCharacterId = DEFAULT_CHARACTER_ID;
     this.snapshot = null;
     this.showcaseViews = new Map();
     this.battleViews = new Map();
@@ -56,7 +57,7 @@ export class ChampionScene {
     this.buildLighting();
     this.buildArena();
     this.buildCharacters();
-    this.setMode("title", "silver_knight");
+    this.setMode("title", DEFAULT_CHARACTER_ID);
     this.resize();
 
     window.addEventListener("resize", () => this.resize());
@@ -183,7 +184,7 @@ export class ChampionScene {
   }
 
   buildCharacters() {
-    for (const id of ["silver_knight", "saladin"]) {
+    for (const id of CHARACTER_IDS) {
       const view = new ProceduralCharacterView(id);
       this.scene.add(view.root);
       this.showcaseViews.set(id, view);
@@ -205,30 +206,24 @@ export class ChampionScene {
     for (const view of this.battleViews.values()) view.root.visible = isBattle;
     for (const view of this.showcaseViews.values()) view.root.visible = !isBattle;
     if (isBattle) return;
-    const silver = this.showcaseViews.get("silver_knight");
-    const saladin = this.showcaseViews.get("saladin");
-    silver.root.visible = true;
-    saladin.root.visible = true;
-    silver.root.scale.setScalar(1.18);
-    saladin.root.scale.setScalar(1.18);
-    silver.setEquipment(fullEquipment());
-    saladin.setEquipment(fullEquipment());
+    const views = CHARACTER_IDS.map((id) => this.showcaseViews.get(id)).filter(Boolean);
+    for (const view of views) {
+      view.root.visible = true;
+      view.root.scale.setScalar(1.18);
+      view.setEquipment(fullEquipment());
+    }
 
-    if (this.mode === "title") {
-      silver.root.position.set(-2.7, 0, .2);
-      saladin.root.position.set(2.7, 0, .2);
-      silver.root.rotation.y = Math.PI / 2;
-      saladin.root.rotation.y = -Math.PI / 2;
-    } else if (this.mode === "select") {
-      silver.root.position.set(-2.45, 0, .2);
-      saladin.root.position.set(2.45, 0, .2);
-      silver.root.rotation.y = .25;
-      saladin.root.rotation.y = -.25;
+    if (this.mode === "title" || this.mode === "select") {
+      const spacing = this.mode === "title" ? 5.4 : 4.9;
+      views.forEach((view, index) => {
+        const offset = index - (views.length - 1) / 2;
+        view.root.position.set(offset * spacing, 0, .2);
+        view.root.rotation.y = this.mode === "title" ? (offset <= 0 ? Math.PI / 2 : -Math.PI / 2) : (offset <= 0 ? .25 : -.25);
+      });
     } else {
       const selected = this.showcaseViews.get(this.selectedCharacterId);
-      const other = this.showcaseViews.get(this.selectedCharacterId === "silver_knight" ? "saladin" : "silver_knight");
+      for (const view of views) view.root.visible = false;
       selected.root.visible = true;
-      other.root.visible = false;
       selected.root.position.set(this.mode === "detail" || this.mode === "lobby" ? -2.8 : 0, 0, .25);
       selected.root.rotation.y = .28;
       selected.root.scale.setScalar(this.mode === "detail" ? 1.38 : 1.24);
@@ -265,7 +260,7 @@ export class ChampionScene {
       active.add(field.id);
       let view = this.itemViews.get(field.id);
       if (!view) {
-        view = makeFieldItem(field.item.slot, field.item.originCharacterId);
+        view = createFieldItemView(field.item.slot, field.item.originCharacterId);
         this.scene.add(view);
         this.itemViews.set(field.id, view);
       }
@@ -311,8 +306,8 @@ export class ChampionScene {
         item.position.y = .24 + Math.sin(this.elapsed * 3 + item.id) * .04;
       }
     } else {
-      for (const view of this.showcaseViews.values()) {
-        if (view.root.visible) view.update({ state: "Idle", facing: view.characterId === "silver_knight" ? 1 : -1, worldY: 0 }, delta, this.elapsed);
+      for (const [index, view] of [...this.showcaseViews.values()].entries()) {
+        if (view.root.visible) view.update({ state: "Idle", facing: index < this.showcaseViews.size / 2 ? 1 : -1, worldY: 0 }, delta, this.elapsed);
       }
     }
     this.renderer.render(this.scene, this.camera);
@@ -336,34 +331,6 @@ function box(width, height, depth, material) {
   result.castShadow = true;
   result.receiveShadow = true;
   return result;
-}
-
-function makeFieldItem(slot, characterId) {
-  const color = characterId === "silver_knight" ? 0x2783cb : 0xc3433d;
-  const group = new THREE.Group();
-  group.userData.phase = Math.random() * Math.PI * 2;
-  const material = std(color, .55, .34);
-  let item;
-  if (slot === "weapon" && characterId === "saladin") {
-    for (const side of [-1, 1]) {
-      item = new THREE.Mesh(new THREE.BoxGeometry(.08, .72, .07), material);
-      item.position.x = side * .12;
-      item.rotation.z = side * .28;
-      item.castShadow = true;
-      group.add(item);
-    }
-  } else {
-    if (slot === "weapon") item = new THREE.Mesh(new THREE.BoxGeometry(.13, 1, .1), material);
-    else if (slot === "head" && characterId === "saladin") item = new THREE.Mesh(new THREE.SphereGeometry(.29, 10, 6, 0, Math.PI * 2, 0, Math.PI / 2), material);
-    else if (slot === "head") item = new THREE.Mesh(new THREE.CylinderGeometry(.24, .3, .36, 6), material);
-    else if (slot === "armor" && characterId === "saladin") item = new THREE.Mesh(new THREE.CylinderGeometry(.25, .34, .5, 8), material);
-    else if (slot === "armor") item = new THREE.Mesh(new THREE.BoxGeometry(.62, .54, .28), material);
-    else if (characterId === "saladin") item = new THREE.Mesh(new THREE.ConeGeometry(.34, .82, 4, 1, true), material);
-    else item = new THREE.Mesh(new THREE.BoxGeometry(.62, .7, .05), material);
-    item.castShadow = true;
-    group.add(item);
-  }
-  return group;
 }
 
 function disposeGroup(group) {
