@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Champion Battle MVP</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <div id="app">
+      <header class="topbar">
+        <div>
+          <strong>Champion Battle</strong>
+          <span id="connection">offline</span>
+        </div>
+        <div id="playerMeta"></div>
+      </header>
+
+      <main class="layout">
+        <section class="panel" id="screen"></section>
+        <section class="battle">
+          <canvas id="game" width="1280" height="540"></canvas>
+          <div id="battleHud"></div>
+        </section>
+      </main>
+
+      <footer class="controls">
+        <span>A/D 移動</span>
+        <span>W ジャンプ</span>
+        <span>J 攻撃/長押し</span>
+        <span>K ガード</span>
+        <span>E 拾得</span>
+        <span>1-4 スキル</span>
+      </footer>
+    </div>
+    <script type="module" src="/src/client/app.js"></script>
+  </body>
+</html>

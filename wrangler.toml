@@ -1,0 +1,17 @@
+name = "champion-battle-mvp"
+main = "src/worker.ts"
+compatibility_date = "2026-06-11"
+
+[assets]
+directory = "./dist/client"
+binding = "ASSETS"
+not_found_handling = "single-page-application"
+run_worker_first = ["/api/*", "/ws/*"]
+
+[[durable_objects.bindings]]
+name = "MATCH_OBJECT"
+class_name = "MatchDurableObject"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["MatchDurableObject"]

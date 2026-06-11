@@ -1,0 +1,498 @@
+import {
+  DEFAULT_INPUT,
+  DROP_ORDER,
+  GRAVITY,
+  GROUND_Y,
+  INITIAL_HP,
+  JUMP_SPEED,
+  MATCH_TIME_MS,
+  MOVE_SPEED,
+  OPPONENT_PICKUP_LOCK_FRAMES,
+  OWNER_PICKUP_LOCK_FRAMES,
+  PICKUP_RADIUS,
+  PLAYER_WIDTH,
+  STAGE_WIDTH,
+  TICK_MS
+} from "../shared/constants.ts";
+import { attackForEquipment, CHARACTER_SPECS, createEquipment, type AttackSpec } from "../shared/characters.ts";
+import type {
+  CharacterId,
+  EquipmentItem,
+  EquipmentSlot,
+  FieldItem,
+  InputState,
+  MatchEvent,
+  MatchPhase,
+  MatchResult,
+  MatchSnapshot,
+  PlayerSide,
+  PlayerSnapshot
+} from "../shared/types.ts";
+
+interface ActiveAttack {
+  spec: AttackSpec;
+  startFrame: number;
+  hitDone: boolean;
+}
+
+interface PlayerRuntime extends PlayerSnapshot {
+  latestInput: InputState;
+  previousInput: InputState;
+  attackTimer: number;
+  activeAttack: ActiveAttack | null;
+  invulnerableUntilFrame: number;
+  attackHeldFrames: number;
+}
+
+export class MatchSimulation {
+  frame = 0;
+  phase: MatchPhase = "waiting";
+  timeRemainingMs = MATCH_TIME_MS;
+  result: MatchResult | undefined;
+  players = new Map<PlayerSide, PlayerRuntime>();
+  fieldItems: FieldItem[] = [];
+  events: MatchEvent[] = [];
+
+  addPlayer(side: PlayerSide, playerId: string, cp: number, characterId: CharacterId): void {
+    const equipment = createEquipment(characterId, playerId);
+    const x = side === "p1" ? 260 : STAGE_WIDTH - 260;
+    this.players.set(side, {
+      side,
+      playerId,
+      characterId,
+      cp,
+      hp: INITIAL_HP,
+      position: { x, y: GROUND_Y },
+      velocity: { x: 0, y: 0 },
+      facing: side === "p1" ? 1 : -1,
+      state: "Idle",
+      stateTimer: 0,
+      equipment,
+      equippedCount: 4,
+      comboStep: 0,
+      attackName: null,
+      guardUntilFrame: 0,
+      latestInput: { ...DEFAULT_INPUT, skills: {} },
+      previousInput: { ...DEFAULT_INPUT, skills: {} },
+      attackTimer: 0,
+      activeAttack: null,
+      invulnerableUntilFrame: 0,
+      attackHeldFrames: 0
+    });
+    this.push("joined", `${side} joined as ${CHARACTER_SPECS[characterId].name}`);
+    if (this.players.size === 2) {
+      this.phase = "playing";
+      this.push("ready", "Match started");
+    }
+  }
+
+  removePlayer(side: PlayerSide): void {
+    if (this.phase === "finished") return;
+    const other = side === "p1" ? "p2" : "p1";
+    if (this.players.has(other)) {
+      this.finish({ winner: other, reason: "disconnect", cpDelta: { p1: side === "p1" ? -30 : 30, p2: side === "p2" ? -30 : 30 } });
+    }
+  }
+
+  setInput(side: PlayerSide, input: InputState): void {
+    const player = this.players.get(side);
+    if (!player) return;
+    player.latestInput = { ...input, skills: { ...input.skills } };
+  }
+
+  tick(): void {
+    this.frame += 1;
+    if (this.phase !== "playing") return;
+
+    this.timeRemainingMs = Math.max(0, this.timeRemainingMs - TICK_MS);
+    for (const item of this.fieldItems) {
+      item.item.cooldownRemainingMs = Math.max(0, item.item.cooldownRemainingMs - TICK_MS);
+    }
+
+    const p1 = this.players.get("p1");
+    const p2 = this.players.get("p2");
+    if (!p1 || !p2) return;
+
+    this.updatePlayer(p1, p2);
+    this.updatePlayer(p2, p1);
+    this.resolveAttack(p1, p2);
+    this.resolveAttack(p2, p1);
+    this.resolvePickup(p1);
+    this.resolvePickup(p2);
+    this.faceOpponents(p1, p2);
+    this.checkFinish();
+
+    for (const player of [p1, p2]) {
+      player.previousInput = { ...player.latestInput, skills: { ...player.latestInput.skills } };
+    }
+  }
+
+  snapshot(localSide?: PlayerSide): MatchSnapshot {
+    const snapshot: MatchSnapshot = {
+      type: "server.snapshot",
+      frame: this.frame,
+      phase: this.phase,
+      timeRemainingMs: Math.max(0, Math.round(this.timeRemainingMs)),
+      players: [...this.players.values()].map((player) => this.publicPlayer(player)),
+      fieldItems: this.fieldItems.map((item) => ({ ...item, item: { ...item.item }, position: { ...item.position } }))
+    };
+    if (localSide) snapshot.localSide = localSide;
+    if (this.result) snapshot.result = this.result;
+    return snapshot;
+  }
+
+  drainEvents(): MatchEvent[] {
+    const events = this.events;
+    this.events = [];
+    return events;
+  }
+
+  private updatePlayer(player: PlayerRuntime, opponent: PlayerRuntime): void {
+    const input = player.latestInput;
+    this.cooldownEquipment(player);
+
+    if (player.state === "Dead") return;
+    if (player.stateTimer > 0) player.stateTimer -= 1;
+
+    if (player.stateTimer <= 0 && ["Hitstun", "AttackRecovery", "GuardCounterWindow", "Stunned"].includes(player.state)) {
+      player.state = "Idle";
+      player.attackName = null;
+    }
+    if (player.stateTimer <= 0 && player.state === "KneelDown") {
+      player.state = "Down";
+      player.stateTimer = 45;
+    }
+    if (player.stateTimer <= 0 && player.state === "Down") {
+      player.state = "Idle";
+    }
+
+    const canAct = ["Idle", "Move", "Guard", "GuardCounterWindow"].includes(player.state);
+    const headSkill = player.equipment.head ? attackForEquipment(player.equipment.head) : undefined;
+    if (headSkill?.id === "saladin_windwall" && input.skills.head && !player.previousInput.skills.head) {
+      this.trySkill(player, opponent, "head", true);
+    }
+
+    if (canAct) {
+      if (input.guard) {
+        if (player.state !== "Guard" && player.state !== "GuardCounterWindow") {
+          player.guardUntilFrame = this.frame + 180;
+        }
+        player.state = this.frame <= player.guardUntilFrame ? "Guard" : "Idle";
+      } else if (player.state === "Guard") {
+        player.state = "Idle";
+      }
+
+      for (const slot of ["cloak", "head", "armor", "weapon"] as EquipmentSlot[]) {
+        if (input.skills[slot] && !player.previousInput.skills[slot]) {
+          this.trySkill(player, opponent, slot, false);
+        }
+      }
+
+      if (input.attack) {
+        player.attackHeldFrames += 1;
+      } else {
+        if (player.previousInput.attack && player.attackHeldFrames >= 18) this.startAttack(player, this.getHoldAttack(player));
+        player.attackHeldFrames = 0;
+      }
+
+      if (input.attack && !player.previousInput.attack) {
+        if (player.state === "GuardCounterWindow") {
+          this.startAttack(player, CHARACTER_SPECS[player.characterId].guardCounter);
+        } else {
+          this.startAttack(player, this.getComboAttack(player));
+        }
+      }
+
+      if (!player.activeAttack && player.state !== "Guard") {
+        const axis = Number(input.right) - Number(input.left);
+        player.velocity.x = axis * MOVE_SPEED;
+        if (axis !== 0) {
+          player.facing = axis > 0 ? 1 : -1;
+          player.state = "Move";
+        } else if (player.state === "Move") {
+          player.state = "Idle";
+        }
+        if (input.up && player.position.y >= GROUND_Y) player.velocity.y = JUMP_SPEED;
+      }
+    }
+
+    player.velocity.y += GRAVITY;
+    player.position.x = clamp(player.position.x + player.velocity.x, PLAYER_WIDTH, STAGE_WIDTH - PLAYER_WIDTH);
+    player.position.y += player.velocity.y;
+    if (player.position.y >= GROUND_Y) {
+      player.position.y = GROUND_Y;
+      player.velocity.y = 0;
+      if (player.state === "AirDamaged") {
+        player.state = "Down";
+        player.stateTimer = 45;
+      }
+    }
+
+    if (player.activeAttack) {
+      player.attackTimer += 1;
+      const total = player.activeAttack.spec.startupFrames + player.activeAttack.spec.activeFrames + player.activeAttack.spec.recoveryFrames;
+      const move = player.activeAttack.spec.movement ?? 0;
+      if (move && player.attackTimer <= player.activeAttack.spec.startupFrames + player.activeAttack.spec.activeFrames) {
+        player.position.x = clamp(player.position.x + (move / Math.max(1, player.activeAttack.spec.activeFrames + player.activeAttack.spec.startupFrames)) * player.facing, PLAYER_WIDTH, STAGE_WIDTH - PLAYER_WIDTH);
+      }
+      if (player.attackTimer >= total) {
+        player.activeAttack = null;
+        player.attackTimer = 0;
+        player.attackName = null;
+        player.state = "Idle";
+      }
+    }
+  }
+
+  startAttack(player: PlayerRuntime, spec: AttackSpec): void {
+    if (player.activeAttack || player.state === "Dead") return;
+    player.activeAttack = { spec, startFrame: this.frame, hitDone: false };
+    player.attackTimer = 0;
+    player.attackName = spec.name;
+    player.state = "AttackStartup";
+    player.velocity.x = 0;
+    if (spec.invulnerable) player.invulnerableUntilFrame = this.frame + spec.startupFrames + spec.activeFrames;
+  }
+
+  private resolveAttack(attacker: PlayerRuntime, defender: PlayerRuntime): void {
+    const active = attacker.activeAttack;
+    if (!active || active.hitDone) return;
+    const localTimer = attacker.attackTimer;
+    const isActive = localTimer >= active.spec.startupFrames && localTimer <= active.spec.startupFrames + active.spec.activeFrames;
+    attacker.state = localTimer < active.spec.startupFrames ? "AttackStartup" : isActive ? "AttackActive" : "AttackRecovery";
+    if (!isActive) return;
+    if (defender.invulnerableUntilFrame >= this.frame || defender.state === "Dead") return;
+    if (Math.abs(attacker.position.x - defender.position.x) > active.spec.range) return;
+    if (Math.abs(attacker.position.y - defender.position.y) > 120) return;
+
+    const blocked = this.isBlocking(defender, attacker) && !active.spec.guardPierce;
+    active.hitDone = true;
+    if (blocked) {
+      defender.state = "GuardCounterWindow";
+      defender.stateTimer = 30;
+      this.push("blocked", `${defender.side} blocked ${active.spec.name}`);
+      return;
+    }
+
+    this.applyHit(attacker, defender, active.spec);
+  }
+
+  private applyHit(attacker: PlayerRuntime, defender: PlayerRuntime, spec: AttackSpec): void {
+    if (defender.hp > 0) {
+      defender.hp = Math.max(0, defender.hp - spec.damage);
+    } else {
+      this.purgeOrKill(defender);
+    }
+
+    if (defender.state !== "Dead") {
+      if (spec.effect === "kneel") {
+        defender.state = "KneelDown";
+        defender.stateTimer = 90;
+      } else if (spec.effect === "air" || spec.effect === "down") {
+        defender.state = "AirDamaged";
+        defender.stateTimer = 45;
+        defender.velocity.y = -7.5;
+        defender.velocity.x = attacker.facing * 4.8;
+      } else if (spec.effect === "stun") {
+        defender.state = "Stunned";
+        defender.stateTimer = 180;
+      } else {
+        defender.state = "Hitstun";
+        defender.stateTimer = 12;
+      }
+      const hardGuard = defender.equipment.armor?.skillId === "silver_hard_guard";
+      if (hardGuard && defender.position.y >= GROUND_Y && spec.damage > 0) {
+        attacker.velocity.x = -attacker.facing * 7;
+      }
+    }
+    this.push("hit", `${attacker.side} hit ${defender.side} with ${spec.name}`);
+  }
+
+  purgeOrKill(player: PlayerRuntime): void {
+    const slot = DROP_ORDER.find((candidate) => player.equipment[candidate]);
+    if (!slot) {
+      player.state = "Dead";
+      this.push("dead", `${player.side} is dead`);
+      return;
+    }
+    const item = player.equipment[slot];
+    if (!item) return;
+    player.equipment[slot] = null;
+    player.equippedCount -= 1;
+    this.fieldItems.push({
+      id: item.id,
+      item,
+      position: { x: clamp(player.position.x + player.facing * -28, 40, STAGE_WIDTH - 40), y: GROUND_Y },
+      droppedFrame: this.frame,
+      lockOwnerUntilFrame: this.frame + OWNER_PICKUP_LOCK_FRAMES,
+      lockOpponentUntilFrame: this.frame + OPPONENT_PICKUP_LOCK_FRAMES
+    });
+    this.push("purged", `${player.side} dropped ${slot}`);
+  }
+
+  private resolvePickup(player: PlayerRuntime): void {
+    if (!player.latestInput.pickup || !this.justPressed(player, "pickup")) return;
+    const candidates = this.fieldItems
+      .map((item, index) => ({ item, index, distance: Math.abs(item.position.x - player.position.x) }))
+      .filter(({ item, distance }) => distance <= PICKUP_RADIUS && this.canPickup(player, item))
+      .sort((a, b) => this.pickupPriority(player, a.item) - this.pickupPriority(player, b.item) || a.distance - b.distance);
+    const chosen = candidates[0];
+    if (!chosen) return;
+    const field = chosen.item;
+    this.fieldItems.splice(chosen.index, 1);
+    const slot = field.item.slot;
+    const current = player.equipment[slot];
+    const own = field.item.ownerPlayerId === player.playerId;
+    if (current && current.id !== field.item.id) {
+      player.equipment[slot] = field.item;
+      this.fieldItems.push({
+        id: current.id,
+        item: current,
+        position: { x: player.position.x, y: GROUND_Y },
+        droppedFrame: this.frame,
+        lockOwnerUntilFrame: this.frame + OWNER_PICKUP_LOCK_FRAMES,
+        lockOpponentUntilFrame: this.frame + OPPONENT_PICKUP_LOCK_FRAMES
+      });
+      this.push("swap", `${player.side} swapped ${slot}`);
+    } else {
+      if (!current) player.equippedCount += 1;
+      player.equipment[slot] = field.item;
+      this.push("pickup", `${player.side} picked up ${own ? "own" : "opponent"} ${slot}`);
+    }
+  }
+
+  private canPickup(player: PlayerRuntime, item: FieldItem): boolean {
+    if (item.item.ownerPlayerId === player.playerId) return this.frame >= item.lockOwnerUntilFrame;
+    return this.frame >= item.lockOpponentUntilFrame;
+  }
+
+  private pickupPriority(player: PlayerRuntime, item: FieldItem): number {
+    const missing = !player.equipment[item.item.slot];
+    const own = item.item.ownerPlayerId === player.playerId;
+    if (missing && own) return 1;
+    if (missing && !own) return 2;
+    if (!missing && !own) return 3;
+    if (!missing && own) return 4;
+    return 5;
+  }
+
+  private trySkill(player: PlayerRuntime, opponent: PlayerRuntime, slot: EquipmentSlot, force: boolean): void {
+    const item = player.equipment[slot];
+    if (!item || item.cooldownRemainingMs > 0) return;
+    const spec = attackForEquipment(item);
+    if (!spec) return;
+    const skill = CHARACTER_SPECS[item.originCharacterId].skills[slot];
+    const canUse = force || ["Idle", "Move", "Guard", "GuardCounterWindow"].includes(player.state);
+    if (!canUse || skill.passive) return;
+    if (skill.id === "saladin_windwall") {
+      player.state = "Idle";
+      player.stateTimer = 0;
+      opponent.state = "Hitstun";
+      opponent.stateTimer = 6;
+    }
+    this.startAttack(player, spec);
+    item.cooldownRemainingMs = item.cooldownMs;
+  }
+
+  private getComboAttack(player: PlayerRuntime): AttackSpec {
+    const weapon = player.equipment.weapon;
+    const origin = weapon?.originCharacterId ?? player.characterId;
+    const spec = CHARACTER_SPECS[origin];
+    const combo = weapon ? spec.combo : spec.barehandCombo;
+    const next = player.comboStep % combo.length;
+    player.comboStep = next + 1;
+    return combo[next] ?? combo[0]!;
+  }
+
+  private getHoldAttack(player: PlayerRuntime): AttackSpec {
+    const weapon = player.equipment.weapon;
+    return CHARACTER_SPECS[weapon?.originCharacterId ?? player.characterId].holdAttack;
+  }
+
+  private cooldownEquipment(player: PlayerRuntime): void {
+    for (const item of Object.values(player.equipment)) {
+      if (item) item.cooldownRemainingMs = Math.max(0, item.cooldownRemainingMs - TICK_MS);
+    }
+  }
+
+  private isBlocking(defender: PlayerRuntime, attacker: PlayerRuntime): boolean {
+    if (defender.state !== "Guard" && defender.state !== "GuardCounterWindow") return false;
+    const incomingFromRight = attacker.position.x > defender.position.x;
+    return (incomingFromRight && defender.facing === 1) || (!incomingFromRight && defender.facing === -1);
+  }
+
+  private faceOpponents(p1: PlayerRuntime, p2: PlayerRuntime): void {
+    if (!p1.activeAttack && p1.state !== "Guard") p1.facing = p2.position.x >= p1.position.x ? 1 : -1;
+    if (!p2.activeAttack && p2.state !== "Guard") p2.facing = p1.position.x >= p2.position.x ? 1 : -1;
+  }
+
+  private checkFinish(): void {
+    const p1 = this.players.get("p1");
+    const p2 = this.players.get("p2");
+    if (!p1 || !p2 || this.phase === "finished") return;
+    if (p1.state === "Dead" && p2.state === "Dead") {
+      this.finish({ winner: "draw", reason: "simultaneous_death", cpDelta: { p1: 0, p2: 0 } });
+    } else if (p1.state === "Dead") {
+      this.finish({ winner: "p2", reason: "death", cpDelta: { p1: -30, p2: 30 } });
+    } else if (p2.state === "Dead") {
+      this.finish({ winner: "p1", reason: "death", cpDelta: { p1: 30, p2: -30 } });
+    } else if (this.timeRemainingMs <= 0) {
+      this.finish(this.timeoutResult(p1, p2));
+    }
+  }
+
+  private timeoutResult(p1: PlayerRuntime, p2: PlayerRuntime): MatchResult {
+    if (p1.hp !== p2.hp) {
+      const winner = p1.hp > p2.hp ? "p1" : "p2";
+      return { winner, reason: "timeout_hp", cpDelta: { p1: winner === "p1" ? 30 : -30, p2: winner === "p2" ? 30 : -30 } };
+    }
+    if (p1.equippedCount !== p2.equippedCount) {
+      const winner = p1.equippedCount > p2.equippedCount ? "p1" : "p2";
+      return { winner, reason: "timeout_equipment", cpDelta: { p1: winner === "p1" ? 30 : -30, p2: winner === "p2" ? 30 : -30 } };
+    }
+    return { winner: "draw", reason: "timeout_draw", cpDelta: { p1: 0, p2: 0 } };
+  }
+
+  private finish(result: MatchResult): void {
+    this.phase = "finished";
+    this.result = result;
+    this.push("result", `Result: ${result.winner} by ${result.reason}`);
+  }
+
+  private publicPlayer(player: PlayerRuntime): PlayerSnapshot {
+    return {
+      side: player.side,
+      playerId: player.playerId,
+      characterId: player.characterId,
+      cp: player.cp,
+      hp: player.hp,
+      position: { ...player.position },
+      velocity: { ...player.velocity },
+      facing: player.facing,
+      state: player.state,
+      stateTimer: player.stateTimer,
+      equipment: {
+        cloak: player.equipment.cloak ? { ...player.equipment.cloak } : null,
+        head: player.equipment.head ? { ...player.equipment.head } : null,
+        armor: player.equipment.armor ? { ...player.equipment.armor } : null,
+        weapon: player.equipment.weapon ? { ...player.equipment.weapon } : null
+      },
+      equippedCount: player.equippedCount,
+      comboStep: player.comboStep,
+      attackName: player.attackName,
+      guardUntilFrame: player.guardUntilFrame
+    };
+  }
+
+  private justPressed(player: PlayerRuntime, key: keyof Pick<InputState, "pickup">): boolean {
+    return Boolean(player.latestInput[key]) && !player.previousInput[key];
+  }
+
+  private push(kind: MatchEvent["kind"], message: string): void {
+    this.events.push({ type: "server.event", frame: this.frame, kind, message });
+  }
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value));
+}
