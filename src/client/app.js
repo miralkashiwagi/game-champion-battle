@@ -98,6 +98,27 @@ function setScreen(next) {
   renderScreen();
 }
 
+function rematchStatus() {
+  const remaining = state.rematchDeadline ? Math.max(0, Math.ceil((state.rematchDeadline - Date.now()) / 1000)) : 0;
+  const opponentRequested = state.rematchRequestedPlayerIds.some((id) => id !== state.playerId);
+  const text = !state.rematchAvailable
+    ? "再戦受付は終了しました"
+    : state.rematchRequested
+      ? `対戦相手の返答を待っています（残り ${remaining}秒）`
+      : opponentRequested
+        ? `対戦相手が再戦を希望しています（残り ${remaining}秒）`
+        : `再戦受付中（残り ${remaining}秒）`;
+  return { text, opponentRequested };
+}
+
+function updateRematchStatus() {
+  const status = screen.querySelector("[data-rematch-status]");
+  if (!status) return;
+  const { text, opponentRequested } = rematchStatus();
+  status.textContent = text;
+  status.classList.toggle("online", opponentRequested);
+}
+
 function renderScreen() {
   const online = state.ws?.readyState === WebSocket.OPEN;
   if (state.screen === "title") {
@@ -221,15 +242,7 @@ function renderScreen() {
     const delta = result && state.localSide ? result.cpDelta[state.localSide] : 0;
     const outcome = !result || result.winner === "draw" ? "DRAW" : result.winner === state.localSide ? "WIN" : "LOSE";
     const before = state.resultPreviousCp ?? state.cp - delta;
-    const remaining = state.rematchDeadline ? Math.max(0, Math.ceil((state.rematchDeadline - Date.now()) / 1000)) : 0;
-    const opponentRequested = state.rematchRequestedPlayerIds.some((id) => id !== state.playerId);
-    const rematchText = !state.rematchAvailable
-      ? "再戦受付は終了しました"
-      : state.rematchRequested
-        ? `対戦相手の返答を待っています（残り ${remaining}秒）`
-        : opponentRequested
-          ? `対戦相手が再戦を希望しています（残り ${remaining}秒）`
-          : `再戦受付中（残り ${remaining}秒）`;
+    const { text: rematchText, opponentRequested } = rematchStatus();
     screen.className = "screen-layer result-screen";
     screen.innerHTML = `
       <div class="result-title ${outcome.toLowerCase()}">${outcome}</div>
@@ -237,7 +250,7 @@ function renderScreen() {
         <p>${outcome === "WIN" ? "勝利！" : outcome === "LOSE" ? "敗北" : "引き分け"}　<span class="muted">${reasonLabels[result?.reason] || "対戦終了"}</span></p>
         <div class="divider"></div>
         <div class="cp-change"><span>${before}</span><span>▶</span><strong>${state.cp}</strong><span class="cp-delta ${delta >= 0 ? "plus" : "minus"}">(${delta > 0 ? "+" : ""}${delta})</span></div>
-        <p class="status ${opponentRequested ? "online" : ""}">${rematchText}</p>
+        <p class="status ${opponentRequested ? "online" : ""}" data-rematch-status>${rematchText}</p>
         <div class="result-actions">
           <button class="button primary" data-action="match" ${state.rematchRequested ? "disabled" : ""}>${state.rematchAvailable ? "再戦する" : "新しい対戦相手を探す"}</button>
           <button class="button" data-action="lobby">ロビーに戻る</button>
@@ -444,7 +457,7 @@ function sendCurrentInput() {
 
 setInterval(sendCurrentInput, 1000);
 setInterval(() => {
-  if (state.screen === "result" && state.rematchAvailable) renderScreen();
+  if (state.screen === "result" && state.rematchAvailable) updateRematchStatus();
 }, 250);
 
 function renderBattleHud() {
