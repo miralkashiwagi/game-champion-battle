@@ -1,4 +1,4 @@
-import * as THREE from "../../public/vendor/three.module.min.js";
+import * as THREE from "three";
 import { CHARACTER_IDS, DEFAULT_CHARACTER_ID } from "../characters/registry.ts";
 import { createFieldItemView, ProceduralCharacterView } from "./character-view.js";
 

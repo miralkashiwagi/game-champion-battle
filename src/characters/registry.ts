@@ -1,9 +1,11 @@
 import { saladin } from "./saladin/index.ts";
 import { silverKnight } from "./silver_knight/index.ts";
+import { syal } from "./syal/index.ts";
 
 export const CHARACTER_REGISTRY = {
   silver_knight: silverKnight,
-  saladin
+  saladin,
+  syal
 } as const;
 
 export type RegisteredCharacterId = keyof typeof CHARACTER_REGISTRY;

@@ -24,6 +24,14 @@ test("スクリプトモデルは装備を必要時だけSocketへ生成する",
   assert.equal(saladin.rig.getSocket("leftHandGrip").children.length, 1);
   assert.equal(saladin.rig.getSocket("rightHandGrip").children.length, 1);
   saladin.dispose();
+
+  const syal = new ProceduralCharacterView("syal");
+  syal.setEquipment(fullEquipment("syal"));
+  assert.equal(syal.root.userData.modelType, "script");
+  assert.equal(syal.equipment.get("weapon").objects.length, 2);
+  assert.equal(syal.rig.getSocket("leftHandGrip").children.length, 1);
+  assert.equal(syal.rig.getSocket("rightHandGrip").children.length, 1);
+  syal.dispose();
 });
 
 test("攻撃モーションはgameRootのサーバー座標を変更しない", () => {
@@ -78,9 +86,87 @@ test("攻撃判定表示はデバッグ有効時だけ表示される", () => {
 test("キャラクター固有モーションはVisual登録から解決される", () => {
   const silver = new ProceduralCharacterView("silver_knight");
   const saladin = new ProceduralCharacterView("saladin");
+  const syal = new ProceduralCharacterView("syal");
   assert.equal(silver.motionPlayer.motionController, silver.visual.scriptModel.motionController);
   assert.equal(saladin.motionPlayer.motionController, saladin.visual.scriptModel.motionController);
   assert.notEqual(silver.motionPlayer.motionController, saladin.motionPlayer.motionController);
+  assert.notEqual(saladin.visual.motionController, syal.visual.motionController);
   silver.dispose();
   saladin.dispose();
+  syal.dispose();
+});
+
+test("SyalのmotionIdはSyal用Controllerで共通攻撃ポーズを再生する", () => {
+  const view = new ProceduralCharacterView("syal");
+  view.update({
+    state: "AttackActive",
+    facing: 1,
+    worldY: 0,
+    activeActionId: "syal_lunar_slash",
+    actionStartedFrame: 2,
+    snapshotFrame: 10
+  }, 1 / 60, 1);
+  assert.equal(view.motionPlayer.motionController, view.visual.motionController);
+  assert.notEqual(view.visualRoot.position.z, 0);
+  view.dispose();
+});
+
+test("共通Humanoid走行は肩、肘、膝、足首を連動させる", () => {
+  const view = new ProceduralCharacterView("syal");
+  view.motionPlayer.time = 0;
+  view.update({ state: "Move", facing: 1, worldY: 0 }, 1 / 30, 0);
+  assert.notEqual(view.rig.getBone("hips").rotation.y, 0);
+  assert.notEqual(view.rig.getBone("leftShoulder").rotation.y, 0);
+  assert.notEqual(view.rig.getBone("leftLowerArm").rotation.z, 0);
+  assert.notEqual(view.rig.getBone("leftLowerLeg").rotation.x, 0);
+  assert.notEqual(view.rig.getBone("leftFoot").rotation.x, 0);
+  assert.equal(view.profile.scale, 1.5);
+  view.dispose();
+});
+
+test("スクリプトモデルもVRM互換の骨格階層を持つ", () => {
+  const view = new ProceduralCharacterView("silver_knight");
+  assert.equal(view.rig.getBone("spine").parent, view.rig.getBone("hips"));
+  assert.equal(view.rig.getBone("chest").parent, view.rig.getBone("spine"));
+  assert.equal(view.rig.getBone("leftUpperLeg").parent, view.rig.getBone("hips"));
+  assert.equal(view.rig.getBone("leftLowerLeg").parent, view.rig.getBone("leftUpperLeg"));
+  assert.equal(view.rig.getBone("leftFoot").parent, view.rig.getBone("leftLowerLeg"));
+  assert.equal(view.rig.getBone("leftLowerArm").parent, view.rig.getBone("leftUpperArm"));
+  assert.equal(view.rig.getBone("leftHand").parent, view.rig.getBone("leftLowerArm"));
+  view.dispose();
+});
+
+test("スクリプトモデルの攻撃も肘と膝を使用する", () => {
+  const view = new ProceduralCharacterView("saladin");
+  view.update({
+    state: "AttackActive", facing: 1, worldY: 0,
+    activeActionId: "saladin_lunar_slash", actionStartedFrame: 2, snapshotFrame: 10
+  }, 1 / 60, 0);
+  assert.notEqual(view.rig.getBone("rightLowerArm").rotation.z, 0);
+  assert.notEqual(view.rig.getBone("rightLowerLeg").rotation.x, 0);
+  view.dispose();
+});
+
+test("空中被弾は速度に応じて全身Humanoidポーズを変える", () => {
+  const view = new ProceduralCharacterView("syal");
+  view.root.position.x = 4;
+  view.update({ state: "AirDamaged", facing: 1, worldY: .8, velocity: { x: 4.8, y: -6 } }, 1 / 60, 0);
+  const risingChest = view.rig.getBone("chest").rotation.x;
+  assert.notEqual(view.rig.getBone("hips").rotation.x, 0);
+  assert.notEqual(view.rig.getBone("leftLowerArm").rotation.z, 0);
+  assert.notEqual(view.rig.getBone("leftLowerLeg").rotation.x, 0);
+  assert.equal(view.root.position.x, 4);
+
+  view.update({ state: "AirDamaged", facing: 1, worldY: .4, velocity: { x: 4.8, y: 5 } }, 1 / 60, 0);
+  assert.notEqual(view.rig.getBone("chest").rotation.x, risingChest);
+  view.dispose();
+});
+
+test("ダウンは骨盤を軸に全身を倒す", () => {
+  const view = new ProceduralCharacterView("saladin");
+  view.update({ state: "Down", facing: -1, worldY: 0, velocity: { x: 0, y: 0 } }, 1 / 60, 0);
+  assert.ok(Math.abs(view.rig.getBone("hips").rotation.z) > 1);
+  assert.notEqual(view.rig.getBone("leftLowerLeg").rotation.x, 0);
+  assert.equal(view.root.position.y, 0);
+  view.dispose();
 });

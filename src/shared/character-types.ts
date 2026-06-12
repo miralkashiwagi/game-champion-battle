@@ -1,6 +1,10 @@
 export type EquipmentSlot = "cloak" | "head" | "armor" | "weapon";
 export type MotionId = string;
-export type HumanoidBoneName = "hips" | "chest" | "head" | "leftUpperArm" | "rightUpperArm" | "leftUpperLeg" | "rightUpperLeg";
+export type HumanoidBoneName =
+  | "hips" | "spine" | "chest" | "head"
+  | "leftShoulder" | "rightShoulder"
+  | "leftUpperArm" | "rightUpperArm" | "leftLowerArm" | "rightLowerArm" | "leftHand" | "rightHand"
+  | "leftUpperLeg" | "rightUpperLeg" | "leftLowerLeg" | "rightLowerLeg" | "leftFoot" | "rightFoot";
 export type AttachmentSocket = "headAccessory" | "chestArmor" | "back" | "leftHandGrip" | "rightHandGrip";
 type CharacterState =
   | "Idle" | "Move" | "AttackStartup" | "AttackActive" | "AttackRecovery" | "Guard"
@@ -23,11 +27,21 @@ export interface AttackSpec {
   invulnerable?: boolean;
 }
 
-export interface CharacterVisualProfile {
+export interface ScriptCharacterVisualProfile {
   renderer: "script";
   scale: number;
   groundOffset: number;
 }
+
+export interface VrmCharacterVisualProfile {
+  renderer: "vrm";
+  url: string;
+  scale: number;
+  groundOffset: number;
+  fallback: "shared-script";
+}
+
+export type CharacterVisualProfile = ScriptCharacterVisualProfile | VrmCharacterVisualProfile;
 
 export interface CharacterCollisionDefinition {
   halfWidth: number;
@@ -117,7 +131,7 @@ export interface CharacterBehaviorHooks {
 
 export interface CharacterVisualFactory {
   palette: Record<string, number> & { glow: number };
-  scriptModel: {
+  scriptModel?: {
     proportions: {
       shoulderWidth: number;
       torsoHeight: number;
@@ -129,6 +143,7 @@ export interface CharacterVisualFactory {
     upperArmMaterial: "cloth" | "metal";
     motionController: ScriptMotionController;
   };
+  motionController: ScriptMotionController;
   createEquipment: (slot: EquipmentSlot, context: unknown) => EquipmentVisualDefinition;
   createFieldItem: (slot: EquipmentSlot, context: unknown) => unknown;
 }

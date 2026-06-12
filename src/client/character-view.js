@@ -1,4 +1,6 @@
-import * as THREE from "../../public/vendor/three.module.min.js";
+import * as THREE from "three";
+import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
+import { VRMLoaderPlugin } from "@pixiv/three-vrm";
 import { CHARACTER_REGISTRY } from "../characters/registry.ts";
 import { ScriptRigAdapter } from "./script-rig-adapter.js";
 import { ScriptMotionPlayer } from "./script-motion-player.js";
@@ -11,9 +13,23 @@ const SLOT_SOCKETS = {
   weapon: "rightHandGrip"
 };
 
+const SHARED_FALLBACK_PALETTE = {
+  cloth: 0x777b80, clothDark: 0x464a4f, metal: 0xa5a9ad,
+  metalDark: 0x3c4146, plume: 0x777b80, glow: 0xffffff
+};
+
+const SHARED_FALLBACK_MODEL = {
+  proportions: { shoulderWidth: 1, torsoHeight: 1, torsoDepth: 1, legLength: 1, headScale: 1, limbWidth: 1 },
+  upperArmMaterial: "cloth"
+};
+
 export const MODEL_CONTRACT = Object.freeze({
   renderer: "script",
-  humanoidBones: ["hips", "chest", "head", "leftUpperArm", "rightUpperArm", "leftUpperLeg", "rightUpperLeg"],
+  humanoidBones: [
+    "hips", "spine", "chest", "head", "leftShoulder", "rightShoulder",
+    "leftUpperArm", "rightUpperArm", "leftLowerArm", "rightLowerArm", "leftHand", "rightHand",
+    "leftUpperLeg", "rightUpperLeg", "leftLowerLeg", "rightLowerLeg", "leftFoot", "rightFoot"
+  ],
   attachmentSockets: ["headAccessory", "chestArmor", "back", "leftHandGrip", "rightHandGrip"],
   stateMotions: ["idle", "move", "guard", "hit", "down", "dead", "pickup"]
 });
@@ -23,9 +39,9 @@ export class ProceduralCharacterView {
     this.characterId = characterId;
     this.registration = CHARACTER_REGISTRY[characterId];
     this.visual = this.registration.visual;
-    this.scriptModel = this.visual.scriptModel;
-    this.palette = this.visual.palette;
     this.profile = this.registration.definition.visualProfile;
+    this.scriptModel = this.visual.scriptModel || SHARED_FALLBACK_MODEL;
+    this.palette = this.profile.renderer === "vrm" ? SHARED_FALLBACK_PALETTE : this.visual.palette;
     this.root = new THREE.Group();
     this.root.name = `${characterId}-game-root`;
     this.root.userData.modelType = "script";
@@ -34,7 +50,10 @@ export class ProceduralCharacterView {
     this.visualRoot.name = `${characterId}-visual-root`;
     this.root.add(this.visualRoot);
     this.equipment = new Map();
+    this.lastEquipment = null;
+    this.hiddenItemIds = new Set();
     this.build();
+    if (this.profile.renderer === "vrm" && typeof window !== "undefined") this.loadVrm();
   }
 
   build() {
@@ -47,9 +66,13 @@ export class ProceduralCharacterView {
     const leather = material(0x3d3028, .8);
 
     const hips = new THREE.Group();
+    hips.position.y = 1.08 * shape.legLength;
+    const spine = new THREE.Group();
+    spine.position.y = .08;
     const chest = new THREE.Group();
-    chest.position.y = 1.18 * shape.legLength;
-    hips.add(chest);
+    chest.position.y = .24 * shape.torsoHeight;
+    hips.add(spine);
+    spine.add(chest);
     this.visualRoot.add(hips);
     const torso = mesh(new THREE.CylinderGeometry(.42 * shape.shoulderWidth, .52 * shape.shoulderWidth, .82 * shape.torsoHeight, 6), cloth);
     torso.scale.z = .7 * shape.torsoDepth;
@@ -63,38 +86,59 @@ export class ProceduralCharacterView {
     head.scale.setScalar(shape.headScale);
     chest.add(head);
     const upperArmMaterial = this.scriptModel.upperArmMaterial === "cloth" ? cloth : steel;
+    const leftShoulder = new THREE.Group();
+    const rightShoulder = new THREE.Group();
+    leftShoulder.position.set(-.42 * shape.shoulderWidth, .25, 0);
+    rightShoulder.position.set(.42 * shape.shoulderWidth, .25, 0);
+    chest.add(leftShoulder, rightShoulder);
     const leftArm = makeLimb(upperArmMaterial, clothDark, -1, shape.limbWidth);
     const rightArm = makeLimb(upperArmMaterial, clothDark, 1, shape.limbWidth);
-    leftArm.position.set(-.5 * shape.shoulderWidth, .25, 0);
-    rightArm.position.set(.5 * shape.shoulderWidth, .25, 0);
-    chest.add(leftArm, rightArm);
-    const leftLeg = makeLeg(darkSteel, clothDark, shape.limbWidth);
-    const rightLeg = makeLeg(darkSteel, clothDark, shape.limbWidth);
-    leftLeg.position.set(-.23, -.38, 0);
-    rightLeg.position.set(.23, -.38, 0);
-    leftLeg.scale.y = shape.legLength;
-    rightLeg.scale.y = shape.legLength;
-    chest.add(leftLeg, rightLeg);
+    leftArm.upper.position.x = -.08 * shape.shoulderWidth;
+    rightArm.upper.position.x = .08 * shape.shoulderWidth;
+    leftShoulder.add(leftArm.upper);
+    rightShoulder.add(rightArm.upper);
+    const leftLeg = makeLeg(darkSteel, clothDark, shape.limbWidth, shape.legLength);
+    const rightLeg = makeLeg(darkSteel, clothDark, shape.limbWidth, shape.legLength);
+    leftLeg.upper.position.set(-.23, 0, 0);
+    rightLeg.upper.position.set(.23, 0, 0);
+    hips.add(leftLeg.upper, rightLeg.upper);
 
     const sockets = {
       headAccessory: socket("head-accessory", head),
       chestArmor: socket("chest-armor", chest),
       back: socket("back", chest),
-      leftHandGrip: socket("left-hand-grip", leftArm, [0, -.58, 0]),
-      rightHandGrip: socket("right-hand-grip", rightArm, [0, -.58, 0])
+      leftHandGrip: socket("left-hand-grip", leftArm.hand),
+      rightHandGrip: socket("right-hand-grip", rightArm.hand)
     };
     this.rig = new ScriptRigAdapter({
       hips,
+      spine,
       chest,
       head,
-      leftUpperArm: leftArm,
-      rightUpperArm: rightArm,
-      leftUpperLeg: leftLeg,
-      rightUpperLeg: rightLeg
+      leftShoulder,
+      rightShoulder,
+      leftUpperArm: leftArm.upper,
+      rightUpperArm: rightArm.upper,
+      leftLowerArm: leftArm.lower,
+      rightLowerArm: rightArm.lower,
+      leftHand: leftArm.hand,
+      rightHand: rightArm.hand,
+      leftUpperLeg: leftLeg.upper,
+      rightUpperLeg: rightLeg.upper,
+      leftLowerLeg: leftLeg.lower,
+      rightLowerLeg: rightLeg.lower,
+      leftFoot: leftLeg.foot,
+      rightFoot: rightLeg.foot
     }, sockets);
     this.visualRoot.scale.setScalar(this.profile.scale);
     this.visualRoot.position.y = this.profile.groundOffset;
-    this.motionPlayer = new ScriptMotionPlayer(this.rig, this.visualRoot, collectAttackSpecs(), this.scriptModel.motionController);
+    this.motionPlayer = new ScriptMotionPlayer(
+      this.rig,
+      this.visualRoot,
+      collectAttackSpecs(),
+      this.visual.motionController,
+      resolveMotionController
+    );
     this.buildCollisionVisuals();
 
     const shadow = mesh(new THREE.CircleGeometry(.72, 24), new THREE.MeshBasicMaterial({ color: 0x05080b, transparent: true, opacity: .32, depthWrite: false }));
@@ -147,6 +191,8 @@ export class ProceduralCharacterView {
   }
 
   setEquipment(equipment, hiddenItemIds = new Set()) {
+    this.lastEquipment = equipment;
+    this.hiddenItemIds = hiddenItemIds;
     for (const slot of EQUIPMENT_SLOTS) {
       const item = equipment?.[slot] || null;
       const current = this.equipment.get(slot);
@@ -216,6 +262,7 @@ export class ProceduralCharacterView {
     this.root.position.y = Math.max(0, snapshot?.worldY || 0);
     this.root.rotation.y = snapshot?.facing === -1 ? -Math.PI / 2 : Math.PI / 2;
     this.motionPlayer.update(snapshot, delta, elapsed);
+    this.vrm?.update(delta);
     const attacking = snapshot?.state === "AttackActive" && snapshot?.activeActionId;
     const thrusting = /thrust|charge|headbutt|forward_cut|guard_counter|lunar/.test(snapshot?.activeActionId || "");
     this.hitboxView.visible = Boolean(this.collisionDebug && attacking);
@@ -224,9 +271,60 @@ export class ProceduralCharacterView {
   }
 
   dispose() {
+    this.disposed = true;
     for (const slot of [...this.equipment.keys()]) this.removeEquipment(slot);
     disposeGroup(this.root);
     this.root.removeFromParent();
+  }
+
+  async loadVrm() {
+    try {
+      const loader = new GLTFLoader();
+      loader.register((parser) => new VRMLoaderPlugin(parser));
+      const gltf = await loader.loadAsync(this.profile.url);
+      if (this.disposed) {
+        disposeGroup(gltf.scene);
+        return;
+      }
+      const vrm = gltf.userData.vrm;
+      if (!vrm) throw new Error(`VRM data was not found: ${this.profile.url}`);
+      this.installVrm(vrm);
+    } catch (error) {
+      this.root.userData.vrmLoadError = error;
+    }
+  }
+
+  installVrm(vrm) {
+    for (const slot of [...this.equipment.keys()]) this.removeEquipment(slot);
+    const fallbackRoot = this.visualRoot;
+    const visualRoot = new THREE.Group();
+    visualRoot.name = `${this.characterId}-vrm-visual-root`;
+    visualRoot.scale.setScalar(this.profile.scale);
+    visualRoot.position.y = this.profile.groundOffset;
+    visualRoot.add(vrm.scene);
+    this.root.add(visualRoot);
+
+    const rig = createVrmRig(vrm);
+    if (!rig) {
+      visualRoot.removeFromParent();
+      disposeGroup(visualRoot);
+      throw new Error(`VRM humanoid contract is incomplete: ${this.profile.url}`);
+    }
+    this.visualRoot = visualRoot;
+    this.rig = rig;
+    this.vrm = vrm;
+    this.motionPlayer = new ScriptMotionPlayer(
+      rig,
+      visualRoot,
+      collectAttackSpecs(),
+      this.visual.motionController,
+      resolveMotionController
+    );
+    fallbackRoot.removeFromParent();
+    disposeGroup(fallbackRoot);
+    this.root.userData.modelType = "vrm";
+    this.root.userData.vrmLoaded = true;
+    if (this.lastEquipment) this.setEquipment(this.lastEquipment, this.hiddenItemIds);
   }
 }
 
@@ -246,6 +344,29 @@ function collectAttackSpecs() {
     }
   }
   return specs;
+}
+
+function resolveMotionController(motionId) {
+  for (const registration of Object.values(CHARACTER_REGISTRY)) {
+    const definition = registration.definition;
+    const attacks = [...definition.combo, ...definition.barehandCombo, definition.holdAttack, definition.guardCounter, ...Object.values(definition.skills)];
+    if (attacks.some((attack) => attack.motionId === motionId)) return registration.visual.motionController;
+  }
+  return null;
+}
+
+function createVrmRig(vrm) {
+  const boneNames = MODEL_CONTRACT.humanoidBones;
+  const bones = Object.fromEntries(boneNames.map((name) => [name, vrm.humanoid.getNormalizedBoneNode(name)]));
+  if (Object.values(bones).some((bone) => !bone)) return null;
+  const sockets = {
+    headAccessory: socket("head-accessory", bones.head, [0, .12, 0]),
+    chestArmor: socket("chest-armor", bones.chest, [0, 0, .08]),
+    back: socket("back", bones.chest, [0, 0, -.1]),
+    leftHandGrip: socket("left-hand-grip", vrm.humanoid.getNormalizedBoneNode("leftHand") || bones.leftUpperArm),
+    rightHandGrip: socket("right-hand-grip", vrm.humanoid.getNormalizedBoneNode("rightHand") || bones.rightUpperArm)
+  };
+  return new ScriptRigAdapter(bones, sockets);
 }
 
 function socket(name, parent, position = [0, 0, 0]) {
@@ -270,27 +391,46 @@ function makeBlade(length, bladeColor, guardColor, curved) {
 }
 
 function makeLimb(upperMaterial, lowerMaterial, side, widthScale = 1) {
-  const pivot = new THREE.Group();
+  const upperPivot = new THREE.Group();
   const upper = mesh(new THREE.CylinderGeometry(.13, .17, .55, 6), upperMaterial);
   upper.scale.x = upper.scale.z = widthScale;
   upper.position.y = -.25;
   upper.rotation.z = side * -.08;
+  const lowerPivot = new THREE.Group();
+  lowerPivot.position.y = -.5;
+  const forearm = mesh(new THREE.CylinderGeometry(.105, .13, .46, 6), lowerMaterial);
+  forearm.scale.x = forearm.scale.z = widthScale;
+  forearm.position.y = -.22;
+  const hand = new THREE.Group();
+  hand.position.y = -.46;
   const glove = mesh(new THREE.SphereGeometry(.15, 6, 5), lowerMaterial);
-  glove.position.y = -.58;
-  pivot.add(upper, glove);
-  return pivot;
+  hand.add(glove);
+  lowerPivot.add(forearm, hand);
+  upperPivot.add(upper, lowerPivot);
+  return { upper: upperPivot, lower: lowerPivot, hand };
 }
 
-function makeLeg(armorMaterial, clothMaterial, widthScale = 1) {
-  const pivot = new THREE.Group();
-  const thigh = mesh(new THREE.CylinderGeometry(.15, .18, .58, 6), clothMaterial);
+function makeLeg(armorMaterial, clothMaterial, widthScale = 1, lengthScale = 1) {
+  const upperLength = .54 * lengthScale;
+  const lowerLength = .46 * lengthScale;
+  const upperPivot = new THREE.Group();
+  const thigh = mesh(new THREE.CylinderGeometry(.15, .18, upperLength, 6), clothMaterial);
   thigh.scale.x = thigh.scale.z = widthScale;
-  thigh.position.y = -.28;
-  const boot = mesh(new THREE.BoxGeometry(.28, .54, .34), armorMaterial);
+  thigh.position.y = -upperLength / 2;
+  const lowerPivot = new THREE.Group();
+  lowerPivot.position.y = -upperLength;
+  const shin = mesh(new THREE.CylinderGeometry(.12, .145, lowerLength, 6), armorMaterial);
+  shin.scale.x = shin.scale.z = widthScale;
+  shin.position.y = -lowerLength / 2;
+  const foot = new THREE.Group();
+  foot.position.y = -lowerLength;
+  const boot = mesh(new THREE.BoxGeometry(.28, .18, .42), armorMaterial);
   boot.scale.x = widthScale;
-  boot.position.set(0, -.75, .06);
-  pivot.add(thigh, boot);
-  return pivot;
+  boot.position.set(0, -.04, .09);
+  foot.add(boot);
+  lowerPivot.add(shin, foot);
+  upperPivot.add(thigh, lowerPivot);
+  return { upper: upperPivot, lower: lowerPivot, foot };
 }
 
 function material(color, roughness = .78, metalness = .12) {
