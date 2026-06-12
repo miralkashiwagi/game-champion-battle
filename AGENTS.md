@@ -1,7 +1,8 @@
 # AGENTS.md
 
 ## General
-- このプロジェクトは、現在のスクリプトモデルを維持しつつ、将来VRMモデルへ差し替えられる構造を前提とする。
+- このプロジェクトは、スクリプトモデルとVRMモデルを同じRig、Socket、Motion契約で扱う。
+- VRMはversion 1.0系を前提とする。
 - キャラクター関連の変更では、見た目の調整だけであってもゲームロジックとの責務分離を維持する。
 
 ## Character Architecture
@@ -10,12 +11,14 @@
 
 - `definition.ts`: 性能、判定値、攻撃フレーム、`motionId`などのゲームデータ
 - `behavior.ts`: スキルや被弾時の特殊なゲーム挙動
-- `visual.js`: スクリプトモデルの体型、材質、装備Visual
-- `motions.js`: スクリプトモデル固有のモーション実装
+- `visual.js`: スクリプトモデル設定、材質、装備Visual、フィールドアイテムVisual
+- `motions.js`: スクリプトモデルとVRMへ適用するキャラクター固有モーション実装
 - `ScriptRigAdapter`: Humanoid BoneとAttachment Socketの解決
 - `ScriptMotionPlayer`: キャラクター非依存のモーション進行管理
 
-将来のVRM実装は、同じBone、Socket、Motion ID契約を満たす別レンダラーとして追加する。既存のゲームロジックをVRM用に分岐させない。
+VRM実装も同じBone、Socket、Motion ID契約を使用する。既存のゲームロジックをVRM用に分岐させない。
+
+将来別キャラクターとして調整する予定のキャラクター同士で、`definition.ts`、`behavior.ts`、`visual.js`、`motions.js`を継承または共有ファクトリー化しない。初期値が同じでも各キャラクターディレクトリへ自己完結した設定を置く。
 
 ## Required Boundaries
 
@@ -40,24 +43,30 @@
 - 装備接続は`CharacterRig.getSocket(AttachmentSocket)`を使用する。
 - 武器、盾、兜、鎧、外套の接続先は`EquipmentAttachment.socket`で宣言する。
 - 装備は必要になった時点で生成し、アイテムIDが変わった場合に交換・破棄する。全キャラクターの全装備を事前生成しない。
+- スクリプトモデルもVRM互換の階層を維持し、脚は`hips`配下、胸は`spine`配下、前腕は上腕配下、下腿は大腿配下に置く。
 
 ### Motions
 
 - すべての攻撃に安定した`motionId`を設定する。
 - ネットワーク上のモーション開始判定には`activeActionId`と`actionStartedFrame`を使用する。
 - `ScriptMotionPlayer`、`character-view.js`、`scene.js`で`characterId === "..."`によるキャラクター固有分岐を追加してはならない。
-- キャラクター固有の体型、材質、State Motion設定は`visual.scriptModel`に置く。
+- キャラクター固有の体型と材質は`visual.scriptModel`、State Motion設定は登録された`motionController`に置く。
 - キャラクター固有の攻撃モーションは各キャラクターの`motions.js`に置き、`motionController`として登録する。
 - 新キャラクターを追加するときに共有Motion PlayerやSceneの編集を必要とする設計にしない。
 
 ## VRM Compatibility Rules
 
+- VRMはversion 1.0系とnormalized Humanoid Boneを前提とする。
+- VRM 1.0モデルへ固定の`rotation.y = Math.PI`を加えない。前後方向は`gameRoot`の`facing`だけで制御する。
 - ゲームロジックは表示方式が`script`か`vrm`かを意識しない。
 - VRMモデル導入時も`definition.collision`と攻撃定義を維持し、モデル形状から判定を生成しない。
 - VRM用装備も既存のAttachment Socket名を使用し、モデル固有のボーン名をゲームデータへ漏らさない。
 - VRM用AnimationClipやVRMAは既存の`motionId`へ割り当てる。
-- VRMロード失敗時にスクリプトモデルへフォールバックできる構造を維持する。
+- VRMのロード中またはロード失敗時は共用スクリプトモデルへフォールバックする。
 - スクリプトモデル固有の`proportions`や材質設定を`CharacterDefinition`のゲームデータへ移動しない。
+- VRMとスクリプトモデルは`hips`、`spine`、`chest`、`head`、左右の`Shoulder`、`UpperArm`、`LowerArm`、`Hand`、`UpperLeg`、`LowerLeg`、`Foot`を提供する。
+- 走行、被弾、空中被弾、ダウンは骨盤、背骨、肩、肘、膝、足首を使う全身Humanoidモーションとして実装する。
+- VRMファイル内にAnimationClipがない場合も`motions.js`と共通State Motionで動作可能にする。
 
 ## Character Change Checklist
 
@@ -71,6 +80,9 @@
 6. 通常時に判定デバッグ表示が出ない。
 7. 同じ攻撃を連続実行しても`actionStartedFrame`によりモーションが再開する。
 8. 新しいキャラクターをレジストリへ追加するだけで共有Sceneが表示できる。
+9. VRM 1.0モデルの前後方向、接地、`visualProfile.scale`、装備位置が正しい。
+10. スクリプトモデルとVRMの両方で肩、肘、膝、足首を含む状態モーションが破綻しない。
+11. 将来分離予定のキャラクターが別キャラクターの設定ファイルや共有ファクトリーを継承していない。
 
 ## Required Verification
 
@@ -90,3 +102,5 @@ npm run build
 - キャラクター固有モーションがVisual登録から解決される
 - 判定表示がデバッグ有効時だけ表示される
 - `activeActionId`と`actionStartedFrame`が攻撃開始ごとに更新される
+- VRMロード失敗時に共用スクリプトモデルで操作を継続できる
+- VRMとスクリプトモデルが同じHumanoid Bone階層で走行、空中被弾、ダウンを再生する

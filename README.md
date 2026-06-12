@@ -4,10 +4,11 @@
 
 Cloudflare Workers / Durable Objects がマッチングと試合を管理し、クライアントは WebSocket で入力を送信します。移動、攻撃、ガード、装備スキル、HP 0 後の装備パージ、拾得・スワップ、死亡判定、CP 更新、再戦までを実装しています。
 
-現在の実装キャラクターは次の 2 体です。
+現在の実装キャラクターは次の 3 体です。
 
 - `silver_knight`: 近距離・バランス型
 - `saladin`: 近距離・攻撃型
+- `syal`: VRM 1.0 モデルを使用する近距離・攻撃型
 
 ## セットアップ
 
@@ -55,7 +56,7 @@ npm run dev
 - `MatchmakerDurableObject` が CP によるマッチングを行います。
 - `MatchDurableObject` が WebSocket、試合状態、再戦処理を管理します。
 - `MatchSimulation` が 60 tick/sec で戦闘を進め、スナップショットは 20 回/sec で配信されます。
-- クライアント描画は Three.js です。現在のキャラクターはコードから組み立てる簡易 3D モデルで、VRM はまだ読み込んでいません。
+- クライアント描画は Three.js と `@pixiv/three-vrm` を使用します。コードから組み立てるスクリプトモデルと VRM 1.0 モデルを同じ Humanoid Bone / Attachment Socket / Motion ID 契約で扱います。
 
 主要ディレクトリ:
 
@@ -68,7 +69,7 @@ npm run dev
 | `src/shared/` | 通信型、定数、キャラクター共通型 |
 | `src/characters/` | キャラクター固有の設定、挙動、見た目、モーション |
 | `src/client/` | UI、Three.js シーン、キャラクター描画 |
-| `public/` | HTML、CSS、同梱 Three.js |
+| `public/` | HTML、CSS、静的アセット |
 
 
 ## キャラクターデータの構成
@@ -79,12 +80,14 @@ npm run dev
 | --- | --- |
 | `definition.ts` | ID、当たり判定、UI 文言、通常攻撃、スキル、CT などのゲーム設定 |
 | `behavior.ts` | データだけでは表せない特殊挙動のフック |
-| `visual.js` | 現在のスクリプトモデル、装備、フィールドアイテムの形状 |
-| `motions.js` | キャラクター固有の攻撃モーション |
+| `visual.js` | スクリプトモデル設定、装備、フィールドアイテムの形状、共通 Visual 情報 |
+| `motions.js` | キャラクター固有の攻撃モーション。スクリプトモデルと VRM の両方へ適用可能 |
 | `visual.d.ts` | JavaScript 製 Visual の TypeScript 型宣言 |
 | `index.ts` | 上記を `CharacterRegistration` としてまとめる入口 |
 
 型の契約は `src/shared/character-types.ts`、登録一覧は `src/characters/registry.ts` にあります。画面のキャラクター一覧や `CharacterId` 型はレジストリから自動生成されるため、UI や共通の union 型へ ID を重複記載する必要はありません。
+
+各キャラクターの `definition.ts`、`behavior.ts`、`visual.js`、`motions.js` は自己完結させます。現在同じ性能やモーションを持つキャラクターであっても、将来別々に変更する予定ならキャラクター間の継承や共有ファクトリーを作らず、各ディレクトリに設定を保持してください。
 
 装備はキャラクター本体とは別のインスタンスです。相手の装備を拾うと、その装備の `originCharacterId` に対応するスキル、武器コンボ、D ホールド攻撃、外観を使用します。このため、新キャラクターの装備は別キャラクターのリグへ装着しても破綻しないことが必要です。
 
@@ -96,7 +99,7 @@ npm run dev
 2. `definition.ts` の `id` と `CharacterDefinition<"<character_id>">` を一致させる。
 3. `combo`、`barehandCombo`、`holdAttack`、`guardCounter`、4 部位の `skills` を定義する。
 4. 各攻撃の `motionId` を `motions.js` が扱う ID と一致させる。
-5. `visual.js` で本体の体格、4 部位の装備、ドロップ時のフィールド表示を定義する。
+5. `visual.js` でスクリプトモデル設定または VRM 用 Visual 情報、4 部位の装備、ドロップ時のフィールド表示を定義する。
 6. 特殊ルールが必要なら `behavior.ts` の `beforeSkill` または `afterHitReceived` を実装する。
 7. `index.ts` で `definition`、`behavior`、`visual` をまとめる。
 8. `src/characters/registry.ts` に import と登録を 1 件追加する。
@@ -148,13 +151,19 @@ npm run dev
 
 現在の `ProceduralCharacterView` は、サーバー座標を持つ `root` と、演出で動かせる `visualRoot` を分離しています。攻撃モーションで動かすのは `visualRoot` とボーンだけにし、`root` の座標を変更しないでください。ゲーム上の移動と見た目の移動が二重に適用されるのを防ぐためです。
 
-現行モデルが提供するボーン:
+現行のスクリプトモデルと VRM Rig が提供する Humanoid Bone:
 
 - `hips`
+- `spine`
 - `chest`
 - `head`
+- `leftShoulder` / `rightShoulder`
 - `leftUpperArm` / `rightUpperArm`
+- `leftLowerArm` / `rightLowerArm`
+- `leftHand` / `rightHand`
 - `leftUpperLeg` / `rightUpperLeg`
+- `leftLowerLeg` / `rightLowerLeg`
+- `leftFoot` / `rightFoot`
 
 装備ソケット:
 
@@ -164,26 +173,19 @@ npm run dev
 - `leftHandGrip`
 - `rightHandGrip`
 
-状態モーションは `idle`、`move`、`guard`、`hit`、`kneel`、`air`、`stunned`、`down`、`dead`、`pickup` を使用します。攻撃中はサーバースナップショットの `activeActionId`（攻撃の `motionId`）と `actionStartedFrame` から同じ攻撃の再実行も識別します。
+状態モーションは `idle`、`move`、`guard`、`hit`、`kneel`、`air`、`stunned`、`down`、`dead`、`pickup` を使用します。走行、被弾、空中被弾、ダウンは骨盤、背骨、肩、肘、膝、足首を含む全身 Humanoid ポーズとして実装し、スクリプトモデルと VRM の両方へ適用します。攻撃中はサーバースナップショットの `activeActionId`（攻撃の `motionId`）と `actionStartedFrame` から同じ攻撃の再実行も識別します。
 
-## VRM へ置き換える場合
+## VRM モデル
 
-現状の型と描画クラスは `renderer: "script"` および `ProceduralCharacterView` に固定されているため、VRM ファイルを置くだけでは切り替わりません。次の順で描画層を拡張してください。
+VRM は version 1.0 系を前提とします。`@pixiv/three-vrm` の normalized Humanoid Bone を既存の `CharacterRig` 契約へ割り当てるため、VRM 1.0 の前方向へ追加の 180 度回転を適用しないでください。向きは `gameRoot` がサーバーの `facing` から決定します。
 
-1. `@pixiv/three-vrm` と GLTF ローダーを導入し、VRM アセットの配置先とライセンスを決める。
-2. `CharacterVisualProfile` を `script | vrm` の判別可能な型へ変更し、VRM の URL、倍率、接地補正などを持たせる。
-3. `ProceduralCharacterView` と同じ外部 API を持つ `VrmCharacterView` を作る。少なくとも `root`、`update`、`syncEquipment`、`setDebugVisible`、破棄処理が必要になる。
-4. `scene.js` の直接 `new ProceduralCharacterView(...)` をファクトリー呼び出しへ変更し、`renderer` に応じて生成クラスを選ぶ。
-5. VRM の Humanoid ボーンを現在のボーン名へ対応付けるリグアダプターを作る。
-6. 4 部位の装備ソケットを VRM ボーン配下に作り、他キャラクター由来の装備も装着できるようにする。左右の武器を使うキャラクターでは両手ソケットが必須。
-7. `motionId` を VRM の AnimationClip または独自ポーズ処理へ対応付ける。サーバー側の攻撃 ID とフレーム値は描画方式に依存させない。
-8. フィールド上の装備表示は VRM 本体から分離し、現在の `createFieldItem` 相当を維持する。
-9. 非同期ロード中の代替表示、ロード失敗、モデルのキャッシュ、dispose、複数体表示時のメモリ使用量を扱う。
-10. 接地、向き、スケール、当たり判定表示、装備の着脱・スワップ、全状態・全攻撃を実機確認する。
+VRM キャラクターは `definition.ts` の `visualProfile` に `renderer: "vrm"`、モデル URL、`scale`、`groundOffset`、フォールバック方式を設定します。VRM は非同期で読み込み、ロード中または失敗時には中立グレーの共用スクリプトモデルを表示します。
 
-VRM 化しても戦闘判定は `simulation.ts` の 2D 座標と `collision` を使います。モデルのメッシュやアニメーションから当たり判定を自動生成しない限り、見た目を変えた後は `collision.halfWidth`、`collision.height`、攻撃の `range` を手動で合わせる必要があります。
+VRM の normalized Bone へ状態・攻撃モーションを直接適用します。VRM ファイル内に AnimationClip がない場合も、各キャラクターの `motions.js` と共通状態モーションで動作します。将来 VRMA や AnimationClip を使用する場合も既存の `motionId` へ対応付け、ゲームロジックを分岐させないでください。
 
-一部キャラクターだけを先に VRM 化する場合も、装備スワップがあるため「スクリプトモデルの装備を VRM に付ける」「VRM キャラクターの装備をスクリプトモデルに付ける」の両方向を確認してください。装備を汎用ソケット形式に保つと移行しやすくなります。
+VRM アセットはキャラクターディレクトリに置き、ビルド時に `dist/client/characters/<character_id>/` へコピーします。接地、前後方向、倍率、装備Socket、全状態モーションをブラウザで確認してください。
+
+VRM 化しても戦闘判定は `simulation.ts` の 2D 座標と `definition.collision` を使用します。モデルの身長、メッシュ、衣装、アニメーションから判定や攻撃範囲を生成してはいけません。
 
 ## テスト時の確認項目
 
