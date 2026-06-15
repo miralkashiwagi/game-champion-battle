@@ -2,12 +2,14 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { ProceduralCharacterView } from "../src/client/character-view.js";
 
-const fullEquipment = (characterId) => ({
-  cloak: { id: `${characterId}-cloak`, originCharacterId: characterId },
-  head: { id: `${characterId}-head`, originCharacterId: characterId },
-  armor: { id: `${characterId}-armor`, originCharacterId: characterId },
-  weapon: { id: `${characterId}-weapon`, originCharacterId: characterId }
-});
+const equipmentSets = {
+  silver_knight: { cloak: "silver_knight_cloak", head: "silver_knight_helmet", armor: "silver_knight_armor", weapon: "silver_knight_sword" },
+  saladin: { cloak: "saladin_cloak", head: "saladin_headgear", armor: "saladin_armor", weapon: "saladin_twin_blades" },
+  syal: { cloak: "syal_cloak", head: "syal_headgear", armor: "syal_armor", weapon: "syal_twin_blades" }
+};
+const fullEquipment = (characterId) => Object.fromEntries(
+  Object.entries(equipmentSets[characterId]).map(([slot, equipmentId]) => [slot, { id: `${equipmentId}-item`, equipmentId }])
+);
 
 test("スクリプトモデルは装備を必要時だけSocketへ生成する", () => {
   const silver = new ProceduralCharacterView("silver_knight");

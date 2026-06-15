@@ -78,10 +78,10 @@ npm run dev
 
 | ファイル | 内容 |
 | --- | --- |
-| `definition.ts` | ID、当たり判定、UI 文言、通常攻撃、スキル、CT などのゲーム設定 |
+| `definition.ts` | ID、当たり判定、UI 文言、初期装備、素手攻撃、ガードカウンター |
 | `behavior.ts` | データだけでは表せない特殊挙動のフック |
-| `visual.js` | スクリプトモデル設定、装備、フィールドアイテムの形状、共通 Visual 情報 |
-| `motions.js` | キャラクター固有の攻撃モーション。スクリプトモデルと VRM の両方へ適用可能 |
+| `visual.js` | スクリプトモデル設定、材質、共通 Visual 情報 |
+| `motions.js` | 素手攻撃とガードカウンターのモーション |
 | `visual.d.ts` | JavaScript 製 Visual の TypeScript 型宣言 |
 | `index.ts` | 上記を `CharacterRegistration` としてまとめる入口 |
 
@@ -89,7 +89,7 @@ npm run dev
 
 各キャラクターの `definition.ts`、`behavior.ts`、`visual.js`、`motions.js` は自己完結させます。現在同じ性能やモーションを持つキャラクターであっても、将来別々に変更する予定ならキャラクター間の継承や共有ファクトリーを作らず、各ディレクトリに設定を保持してください。
 
-装備はキャラクター本体とは別のインスタンスです。相手の装備を拾うと、その装備の `originCharacterId` に対応するスキル、武器コンボ、D ホールド攻撃、外観を使用します。このため、新キャラクターの装備は別キャラクターのリグへ装着しても破綻しないことが必要です。
+装備は`src/equipment/<slot>/<equipment-id>/`に置き、性能、特殊挙動、Visual、Motionを自己完結させます。相手の装備を拾うと、`equipmentId`からスキル、武器コンボ、長押し攻撃、外観を解決します。初期装備はキャラクターの`initialEquipment`で指定します。
 
 ## キャラクターを追加する
 
@@ -97,16 +97,16 @@ npm run dev
 
 1. `src/characters/<character_id>/` を作成し、6 ファイルを用意する。
 2. `definition.ts` の `id` と `CharacterDefinition<"<character_id>">` を一致させる。
-3. `combo`、`barehandCombo`、`holdAttack`、`guardCounter`、4 部位の `skills` を定義する。
+3. `initialEquipment`、`barehandCombo`、`barehandHoldAttack`、`guardCounter`を定義する。
 4. 各攻撃の `motionId` を `motions.js` が扱う ID と一致させる。
-5. `visual.js` でスクリプトモデル設定または VRM 用 Visual 情報、4 部位の装備、ドロップ時のフィールド表示を定義する。
+5. `visual.js`でスクリプトモデル設定またはVRM用Visual情報を定義する。装備Visualは各装備ディレクトリへ置く。
 6. 特殊ルールが必要なら `behavior.ts` の `beforeSkill` または `afterHitReceived` を実装する。
 7. `index.ts` で `definition`、`behavior`、`visual` をまとめる。
 8. `src/characters/registry.ts` に import と登録を 1 件追加する。
 9. `test/game.test.mjs` と `test/character-view.test.mjs` に登録、特殊挙動、装備ソケット、モーションのテストを追加する。
 10. `npm test`、`npm run typecheck`、`npm run build` を実行し、選択画面と実戦を確認する。
 
-キャラクター ID は URL、保存済み `localStorage`、通信データ、装備の生成元 ID に使われます。公開後の ID 変更は既存データとの互換性に影響するため、表示名だけを変える場合は `ui.name` を変更してください。
+キャラクターIDはURL、保存済み`localStorage`、通信データに使われます。装備種別は独立した`equipmentId`で識別します。
 
 ### 攻撃・スキル設定
 

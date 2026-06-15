@@ -1,0 +1,2 @@
+export const motionController={stateStyle:{},applyAttack({phase,bones:b,visualRoot}){const windup=phase.pose,strike=phase.strike;b.hips.rotation.y=-.45*strike;visualRoot.rotation.y=strike*1.6;b.chest.rotation.y=.55*windup-1.1*strike;b.rightLeg.rotation.x=-1.48*strike;b.rightLeg.rotation.z=-.82*strike;b.leftArm.rotation.z=-.7;b.rightArm.rotation.z=.7;b.leftLowerArm.rotation.z=-.48;b.rightLowerArm.rotation.z=.48;b.rightLowerLeg.rotation.x=.42*strike;b.rightFoot.rotation.x=-.32*strike;}};
+

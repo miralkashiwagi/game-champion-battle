@@ -1,22 +1,19 @@
 import { ChampionScene } from "./scene.js";
 import { CHARACTER_LIST, normalizeCharacterId } from "../characters/registry.ts";
+import { EQUIPMENT_REGISTRY } from "../equipment/registry.ts";
 
 const slotLabels = { cloak: "外套", head: "兜", armor: "鎧", weapon: "武器" };
 const slotGlyphs = { cloak: "◆", head: "●", armor: "⬟", weapon: "†" };
 const characters = Object.fromEntries(CHARACTER_LIST.map(({ definition }) => [definition.id, {
   ...definition.ui,
-  skills: Object.values(definition.skills).map((skill) => [
+  skills: Object.values(definition.initialEquipment).map((equipmentId) => EQUIPMENT_REGISTRY[equipmentId].definition.skill).map((skill) => [
     slotLabels[skill.slot],
     skill.name,
     skill.description,
     skill.passive ? "常時効果" : skill.cooldownMs ? `CT ${skill.cooldownMs / 1000}秒` : "CTなし"
   ])
 }]));
-const equipmentOrigins = Object.fromEntries(CHARACTER_LIST.map(({ definition }) => [definition.id, {
-  badge: definition.ui.badge,
-  label: definition.ui.name,
-  color: definition.ui.accentColor
-}]));
+const equipmentUi = Object.fromEntries(Object.entries(EQUIPMENT_REGISTRY).map(([id, registration]) => [id, registration.definition.ui]));
 const reasonLabels = {
   death: "相手を撃破",
   simultaneous_death: "同時撃破",
@@ -489,10 +486,10 @@ function equipmentHud(player) {
   return ["cloak", "head", "armor", "weapon"].map((slot, index) => {
     const item = player.equipment[slot];
     const cooldown = item ? Math.ceil(item.cooldownRemainingMs / 1000) : 0;
-    const origin = item ? equipmentOrigins[item.originCharacterId] : null;
-    const originClass = item ? `origin-${item.originCharacterId}` : "";
-    const originStyle = origin ? `style="--origin-color:${origin.color}"` : "";
-    return `<div class="equipment-slot ${originClass} ${item ? "" : "off"} ${cooldown ? "cooling" : ""}" ${originStyle} data-cd="${cooldown || ""}" title="${origin?.label || "装備なし"}"><span class="origin-badge">${origin?.badge || "--"}</span><div class="slot-icon">${slotGlyphs[slot]}</div><div class="slot-label">${index + 1} ${slotLabels[slot]}</div></div>`;
+    const ui = item ? equipmentUi[item.equipmentId] : null;
+    const equipmentClass = item ? `equipment-${item.equipmentId}` : "";
+    const equipmentStyle = ui ? `style="--origin-color:${ui.accentColor}"` : "";
+    return `<div class="equipment-slot ${equipmentClass} ${item ? "" : "off"} ${cooldown ? "cooling" : ""}" ${equipmentStyle} data-cd="${cooldown || ""}" title="${ui?.name || "装備なし"}"><span class="origin-badge">${ui?.badge || "--"}</span><div class="slot-icon">${slotGlyphs[slot]}</div><div class="slot-label">${index + 1} ${slotLabels[slot]}</div></div>`;
   }).join("");
 }
 

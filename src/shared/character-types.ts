@@ -66,6 +66,12 @@ export interface EquipmentVisualDefinition<Node = unknown> {
   motions?: { equipped?: MotionId; drop?: MotionId; pickup?: MotionId };
 }
 
+export interface EquipmentUiDefinition {
+  name: string;
+  badge: string;
+  accentColor: string;
+}
+
 export interface ScriptMotionController {
   stateStyle: Record<string, number>;
   applyAttack: (context: unknown) => void;
@@ -95,11 +101,10 @@ export interface CharacterDefinition<Id extends string = string> {
   collision: CharacterCollisionDefinition;
   visualProfile: CharacterVisualProfile;
   ui: CharacterUiDefinition;
-  combo: AttackSpec[];
+  initialEquipment: Record<EquipmentSlot, string>;
   barehandCombo: AttackSpec[];
-  holdAttack: AttackSpec;
+  barehandHoldAttack: AttackSpec;
   guardCounter: AttackSpec;
-  skills: Record<EquipmentSlot, SkillSpec>;
 }
 
 export interface CharacterBehaviorPlayer {
@@ -108,7 +113,7 @@ export interface CharacterBehaviorPlayer {
   velocity: Vec2;
   position: Vec2;
   facing: Facing;
-  equipment: Record<EquipmentSlot, { originCharacterId: string; skillId?: string } | null>;
+  equipment: Record<EquipmentSlot, { equipmentId: string } | null>;
 }
 
 export interface SkillUseContext {
@@ -144,8 +149,32 @@ export interface CharacterVisualFactory {
     motionController: ScriptMotionController;
   };
   motionController: ScriptMotionController;
-  createEquipment: (slot: EquipmentSlot, context: unknown) => EquipmentVisualDefinition;
-  createFieldItem: (slot: EquipmentSlot, context: unknown) => unknown;
+}
+
+export interface EquipmentDefinition<Id extends string = string> {
+  id: Id;
+  slot: EquipmentSlot;
+  ui: EquipmentUiDefinition;
+  skill: SkillSpec;
+  combo?: AttackSpec[];
+  holdAttack?: AttackSpec;
+}
+
+export interface EquipmentBehaviorHooks {
+  beforeSkill?: (context: SkillUseContext) => void;
+  afterHitReceived?: (context: HitReceivedContext) => void;
+}
+
+export interface EquipmentVisualFactory {
+  createAttachments: (context: unknown) => EquipmentVisualDefinition;
+  createFieldItem: (context: unknown) => unknown;
+}
+
+export interface EquipmentRegistration<Id extends string = string> {
+  definition: EquipmentDefinition<Id>;
+  behavior: EquipmentBehaviorHooks;
+  visual: EquipmentVisualFactory;
+  motionController: ScriptMotionController;
 }
 
 export interface CharacterRegistration<Id extends string = string> {

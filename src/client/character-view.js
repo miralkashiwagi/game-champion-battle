@@ -2,6 +2,7 @@ import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { VRMLoaderPlugin } from "@pixiv/three-vrm";
 import { CHARACTER_REGISTRY } from "../characters/registry.ts";
+import { EQUIPMENT_REGISTRY } from "../equipment/registry.ts";
 import { ScriptRigAdapter } from "./script-rig-adapter.js";
 import { ScriptMotionPlayer } from "./script-motion-player.js";
 
@@ -196,15 +197,15 @@ export class ProceduralCharacterView {
     for (const slot of EQUIPMENT_SLOTS) {
       const item = equipment?.[slot] || null;
       const current = this.equipment.get(slot);
-      const itemKey = item ? (item.id || `${this.characterId}:${slot}:showcase`) : null;
-      const originCharacterId = item?.originCharacterId || this.characterId;
+      const itemKey = item ? (item.id || `${item.equipmentId}:showcase`) : null;
+      const equipmentId = item?.equipmentId;
       if (!item) {
         if (current) this.removeEquipment(slot);
         continue;
       }
-      if (!current || current.itemKey !== itemKey || current.originCharacterId !== originCharacterId) {
+      if (!current || current.itemKey !== itemKey || current.equipmentId !== equipmentId) {
         this.removeEquipment(slot);
-        this.addEquipment(slot, itemKey, originCharacterId);
+        this.addEquipment(slot, itemKey, equipmentId);
       }
       const mounted = this.equipment.get(slot);
       const visible = !item.id || !hiddenItemIds.has(item.id);
@@ -212,10 +213,10 @@ export class ProceduralCharacterView {
     }
   }
 
-  addEquipment(slot, itemKey, originCharacterId) {
-    const factory = CHARACTER_REGISTRY[originCharacterId]?.visual;
-    if (!factory) return;
-    const definition = factory.createEquipment(slot, { THREE, material, makeBlade });
+  addEquipment(slot, itemKey, equipmentId) {
+    const registration = EQUIPMENT_REGISTRY[equipmentId];
+    if (!registration) throw new Error(`Unknown equipmentId: ${equipmentId}`);
+    const definition = registration.visual.createAttachments({ THREE, material, makeBlade });
     const objects = [];
     for (const attachment of definition.attachments) {
       const target = this.rig.getSocket(attachment.socket);
@@ -227,7 +228,7 @@ export class ProceduralCharacterView {
       target.add(object);
       objects.push(object);
     }
-    this.equipment.set(slot, { itemKey, originCharacterId, objects, motions: definition.motions || {} });
+    this.equipment.set(slot, { itemKey, equipmentId, objects, motions: definition.motions || {} });
   }
 
   removeEquipment(slot) {
@@ -328,10 +329,13 @@ export class ProceduralCharacterView {
   }
 }
 
-export function createFieldItemView(slot, characterId) {
-  const root = CHARACTER_REGISTRY[characterId].visual.createFieldItem(slot, { THREE, material });
+export function createFieldItemView(equipmentId) {
+  const registration = EQUIPMENT_REGISTRY[equipmentId];
+  if (!registration) throw new Error(`Unknown equipmentId: ${equipmentId}`);
+  const root = registration.visual.createFieldItem({ THREE, material });
+  const slot = registration.definition.slot;
   root.userData.slot = slot;
-  root.userData.originCharacterId = characterId;
+  root.userData.equipmentId = equipmentId;
   return root;
 }
 
@@ -339,17 +343,26 @@ function collectAttackSpecs() {
   const specs = new Map();
   for (const registration of Object.values(CHARACTER_REGISTRY)) {
     const definition = registration.definition;
-    for (const attack of [...definition.combo, ...definition.barehandCombo, definition.holdAttack, definition.guardCounter, ...Object.values(definition.skills)]) {
+    for (const attack of [...definition.barehandCombo, definition.barehandHoldAttack, definition.guardCounter]) {
       specs.set(attack.motionId, attack);
     }
+  }
+  for (const registration of Object.values(EQUIPMENT_REGISTRY)) {
+    const definition = registration.definition;
+    for (const attack of [...(definition.combo || []), ...(definition.holdAttack ? [definition.holdAttack] : []), definition.skill]) specs.set(attack.motionId, attack);
   }
   return specs;
 }
 
 function resolveMotionController(motionId) {
+  for (const registration of Object.values(EQUIPMENT_REGISTRY)) {
+    const definition = registration.definition;
+    const attacks = [...(definition.combo || []), ...(definition.holdAttack ? [definition.holdAttack] : []), definition.skill];
+    if (attacks.some((attack) => attack.motionId === motionId)) return registration.motionController;
+  }
   for (const registration of Object.values(CHARACTER_REGISTRY)) {
     const definition = registration.definition;
-    const attacks = [...definition.combo, ...definition.barehandCombo, definition.holdAttack, definition.guardCounter, ...Object.values(definition.skills)];
+    const attacks = [...definition.barehandCombo, definition.barehandHoldAttack, definition.guardCounter];
     if (attacks.some((attack) => attack.motionId === motionId)) return registration.visual.motionController;
   }
   return null;

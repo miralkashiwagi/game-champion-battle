@@ -1,7 +1,9 @@
 import type { RegisteredCharacterId } from "../characters/registry.ts";
+import type { RegisteredEquipmentId } from "../equipment/registry.ts";
 import type { EquipmentSlot as CharacterEquipmentSlot } from "./character-types.ts";
 
 export type CharacterId = RegisteredCharacterId;
+export type EquipmentId = RegisteredEquipmentId;
 export type PlayerSide = "p1" | "p2";
 export type EquipmentSlot = CharacterEquipmentSlot;
 export type Facing = -1 | 1;
@@ -70,12 +72,9 @@ export type ClientMessage = ClientHello | ClientInput | ClientPing | ClientRemat
 export interface EquipmentItem {
   id: string;
   ownerPlayerId: string;
-  originCharacterId: CharacterId;
+  equipmentId: EquipmentId;
   slot: EquipmentSlot;
-  skillId?: SkillId;
   cooldownRemainingMs: number;
-  cooldownMs: number;
-  guardPierce: boolean;
 }
 
 export type EquipmentSlots = Record<EquipmentSlot, EquipmentItem | null>;

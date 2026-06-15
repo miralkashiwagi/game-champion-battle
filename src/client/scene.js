@@ -307,7 +307,7 @@ export class ChampionScene {
       active.add(field.id);
       let record = this.itemViews.get(field.id);
       if (!record) {
-        const root = createFieldItemView(field.item.slot, field.item.originCharacterId);
+        const root = createFieldItemView(field.item.equipmentId);
         root.position.set(worldX(field.position.x), .24, .55);
         this.scene.add(root);
         record = { root, field };
