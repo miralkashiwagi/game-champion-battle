@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { ProceduralCharacterView } from "../src/client/character-view.js";
+import { createShowcaseEquipment } from "../src/client/scene.js";
 
 const equipmentSets = {
   silver_knight: { cloak: "silver_knight_cloak", head: "silver_knight_helmet", armor: "silver_knight_armor", weapon: "silver_knight_sword" },
@@ -10,6 +11,21 @@ const equipmentSets = {
 const fullEquipment = (characterId) => Object.fromEntries(
   Object.entries(equipmentSets[characterId]).map(([slot, equipmentId]) => [slot, { id: `${equipmentId}-item`, equipmentId }])
 );
+
+test("ショーケース装備はキャラクターの初期equipmentIdから生成される", () => {
+  for (const [characterId, expected] of Object.entries(equipmentSets)) {
+    const equipment = createShowcaseEquipment(characterId);
+    assert.deepEqual(
+      Object.fromEntries(Object.entries(equipment).map(([slot, item]) => [slot, item.equipmentId])),
+      expected
+    );
+
+    const view = new ProceduralCharacterView(characterId);
+    view.setEquipment(equipment);
+    assert.equal(view.equipment.size, 4);
+    view.dispose();
+  }
+});
 
 test("スクリプトモデルは装備を必要時だけSocketへ生成する", () => {
   const silver = new ProceduralCharacterView("silver_knight");

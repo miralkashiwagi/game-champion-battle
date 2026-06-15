@@ -80,14 +80,13 @@ npm run dev
 | --- | --- |
 | `definition.ts` | ID、当たり判定、UI 文言、初期装備、素手攻撃、ガードカウンター |
 | `behavior.ts` | データだけでは表せない特殊挙動のフック |
-| `visual.js` | スクリプトモデル設定、材質、共通 Visual 情報 |
-| `motions.js` | 素手攻撃とガードカウンターのモーション |
-| `visual.d.ts` | JavaScript 製 Visual の TypeScript 型宣言 |
+| `visual.ts` | スクリプトモデル設定、材質、共通 Visual 情報 |
+| `motions.ts` | 素手攻撃とガードカウンターのモーション |
 | `index.ts` | 上記を `CharacterRegistration` としてまとめる入口 |
 
 型の契約は `src/shared/character-types.ts`、登録一覧は `src/characters/registry.ts` にあります。画面のキャラクター一覧や `CharacterId` 型はレジストリから自動生成されるため、UI や共通の union 型へ ID を重複記載する必要はありません。
 
-各キャラクターの `definition.ts`、`behavior.ts`、`visual.js`、`motions.js` は自己完結させます。現在同じ性能やモーションを持つキャラクターであっても、将来別々に変更する予定ならキャラクター間の継承や共有ファクトリーを作らず、各ディレクトリに設定を保持してください。
+各キャラクターの `definition.ts`、`behavior.ts`、`visual.ts`、`motions.ts` は自己完結させます。現在同じ性能やモーションを持つキャラクターであっても、将来別々に変更する予定ならキャラクター間の継承や共有ファクトリーを作らず、各ディレクトリに設定を保持してください。
 
 装備は`src/equipment/<slot>/<equipment-id>/`に置き、性能、特殊挙動、Visual、Motionを自己完結させます。相手の装備を拾うと、`equipmentId`からスキル、武器コンボ、長押し攻撃、外観を解決します。初期装備はキャラクターの`initialEquipment`で指定します。
 
@@ -98,8 +97,8 @@ npm run dev
 1. `src/characters/<character_id>/` を作成し、6 ファイルを用意する。
 2. `definition.ts` の `id` と `CharacterDefinition<"<character_id>">` を一致させる。
 3. `initialEquipment`、`barehandCombo`、`barehandHoldAttack`、`guardCounter`を定義する。
-4. 各攻撃の `motionId` を `motions.js` が扱う ID と一致させる。
-5. `visual.js`でスクリプトモデル設定またはVRM用Visual情報を定義する。装備Visualは各装備ディレクトリへ置く。
+4. 各攻撃の `motionId` を `motions.ts` が扱う ID と一致させる。
+5. `visual.ts`でスクリプトモデル設定またはVRM用Visual情報を定義する。装備Visualは各装備ディレクトリへ置く。
 6. 特殊ルールが必要なら `behavior.ts` の `beforeSkill` または `afterHitReceived` を実装する。
 7. `index.ts` で `definition`、`behavior`、`visual` をまとめる。
 8. `src/characters/registry.ts` に import と登録を 1 件追加する。
@@ -139,8 +138,8 @@ npm run dev
 - 本体サイズ: `definition.ts` の `collision`
 - 描画倍率、接地位置: `definition.ts` の `visualProfile`
 - 被撃時や発動時の特殊処理: `behavior.ts`
-- 体格、色、装備形状: `visual.js`
-- ポーズや攻撃モーション: `motions.js`
+- 体格、色、装備形状: `visual.ts`
+- ポーズや攻撃モーション: `motions.ts`
 - 全キャラクター共通の素手コンボ: `src/characters/common.ts`
 - 移動、重力、試合時間、パージ順などの全体値: `src/shared/constants.ts`
 - 状態遷移、命中、拾得、死亡などの共通ルール: `src/game/simulation.ts`
@@ -181,7 +180,7 @@ VRM は version 1.0 系を前提とします。`@pixiv/three-vrm` の normalized
 
 VRM キャラクターは `definition.ts` の `visualProfile` に `renderer: "vrm"`、モデル URL、`scale`、`groundOffset`、フォールバック方式を設定します。VRM は非同期で読み込み、ロード中または失敗時には中立グレーの共用スクリプトモデルを表示します。
 
-VRM の normalized Bone へ状態・攻撃モーションを直接適用します。VRM ファイル内に AnimationClip がない場合も、各キャラクターの `motions.js` と共通状態モーションで動作します。将来 VRMA や AnimationClip を使用する場合も既存の `motionId` へ対応付け、ゲームロジックを分岐させないでください。
+VRM の normalized Bone へ状態・攻撃モーションを直接適用します。VRM ファイル内に AnimationClip がない場合も、各キャラクターの `motions.ts` と共通状態モーションで動作します。将来 VRMA や AnimationClip を使用する場合も既存の `motionId` へ対応付け、ゲームロジックを分岐させないでください。
 
 VRM アセットはキャラクターディレクトリに置き、ビルド時に `dist/client/characters/<character_id>/` へコピーします。接地、前後方向、倍率、装備Socket、全状態モーションをブラウザで確認してください。
 

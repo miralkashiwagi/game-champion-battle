@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import { CHARACTER_IDS, DEFAULT_CHARACTER_ID } from "../characters/registry.ts";
+import { CHARACTER_IDS, CHARACTER_REGISTRY, DEFAULT_CHARACTER_ID } from "../characters/registry.ts";
 import { createFieldItemView, ProceduralCharacterView } from "./character-view.js";
 
 const STAGE_CENTER = 640;
@@ -223,7 +223,7 @@ export class ChampionScene {
     for (const view of views) {
       view.root.visible = true;
       view.root.scale.setScalar(1.18);
-      view.setEquipment(fullEquipment());
+      view.setEquipment(createShowcaseEquipment(view.characterId));
     }
 
     if (this.mode === "title" || this.mode === "select") {
@@ -405,8 +405,12 @@ export class ChampionScene {
   }
 }
 
-function fullEquipment() {
-  return { cloak: {}, head: {}, armor: {}, weapon: {} };
+export function createShowcaseEquipment(characterId) {
+  const initialEquipment = CHARACTER_REGISTRY[characterId]?.definition.initialEquipment;
+  if (!initialEquipment) throw new Error(`Unknown characterId: ${characterId}`);
+  return Object.fromEntries(
+    Object.entries(initialEquipment).map(([slot, equipmentId]) => [slot, { equipmentId }])
+  );
 }
 
 function worldX(x) {

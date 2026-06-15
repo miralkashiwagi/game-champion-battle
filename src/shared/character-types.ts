@@ -1,3 +1,5 @@
+import type * as THREE from "three";
+
 export type EquipmentSlot = "cloak" | "head" | "armor" | "weapon";
 export type MotionId = string;
 export type HumanoidBoneName =
@@ -53,7 +55,7 @@ export interface CharacterRig<Node = unknown> {
   getSocket(name: AttachmentSocket): Node | null;
 }
 
-export interface EquipmentAttachment<Node = unknown> {
+export interface EquipmentAttachment<Node = THREE.Object3D> {
   socket: AttachmentSocket;
   object: Node;
   position?: [number, number, number];
@@ -61,7 +63,7 @@ export interface EquipmentAttachment<Node = unknown> {
   scale?: number;
 }
 
-export interface EquipmentVisualDefinition<Node = unknown> {
+export interface EquipmentVisualDefinition<Node = THREE.Object3D> {
   attachments: EquipmentAttachment<Node>[];
   motions?: { equipped?: MotionId; drop?: MotionId; pickup?: MotionId };
 }
@@ -72,9 +74,42 @@ export interface EquipmentUiDefinition {
   accentColor: string;
 }
 
+export interface ScriptMotionPhase {
+  pose: number;
+  strike: number;
+}
+
+export interface ScriptMotionBones {
+  hips: THREE.Object3D;
+  spine: THREE.Object3D;
+  chest: THREE.Object3D;
+  head: THREE.Object3D;
+  leftShoulder: THREE.Object3D;
+  rightShoulder: THREE.Object3D;
+  leftArm: THREE.Object3D;
+  rightArm: THREE.Object3D;
+  leftLowerArm: THREE.Object3D;
+  rightLowerArm: THREE.Object3D;
+  leftHand: THREE.Object3D;
+  rightHand: THREE.Object3D;
+  leftLeg: THREE.Object3D;
+  rightLeg: THREE.Object3D;
+  leftLowerLeg: THREE.Object3D;
+  rightLowerLeg: THREE.Object3D;
+  leftFoot: THREE.Object3D;
+  rightFoot: THREE.Object3D;
+}
+
+export interface ScriptAttackMotionContext {
+  id: MotionId;
+  phase: ScriptMotionPhase;
+  bones: ScriptMotionBones;
+  visualRoot: THREE.Object3D;
+}
+
 export interface ScriptMotionController {
   stateStyle: Record<string, number>;
-  applyAttack: (context: unknown) => void;
+  applyAttack: (context: ScriptAttackMotionContext) => void;
 }
 
 export interface SkillSpec extends AttackSpec {
@@ -165,9 +200,31 @@ export interface EquipmentBehaviorHooks {
   afterHitReceived?: (context: HitReceivedContext) => void;
 }
 
+export type EquipmentMaterialFactory = (
+  color: number,
+  roughness?: number,
+  metalness?: number
+) => THREE.MeshStandardMaterial;
+
+export type EquipmentBladeFactory = (
+  length: number,
+  bladeColor: number,
+  guardColor: number,
+  curved: boolean
+) => THREE.Group;
+
+export interface EquipmentVisualContext {
+  THREE: typeof THREE;
+  material: EquipmentMaterialFactory;
+}
+
+export interface EquipmentAttachmentVisualContext extends EquipmentVisualContext {
+  makeBlade: EquipmentBladeFactory;
+}
+
 export interface EquipmentVisualFactory {
-  createAttachments: (context: unknown) => EquipmentVisualDefinition;
-  createFieldItem: (context: unknown) => unknown;
+  createAttachments: (context: EquipmentAttachmentVisualContext) => EquipmentVisualDefinition;
+  createFieldItem: (context: EquipmentVisualContext) => THREE.Group;
 }
 
 export interface EquipmentRegistration<Id extends string = string> {
