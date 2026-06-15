@@ -13,6 +13,7 @@ export const PLAYER_HEIGHT = 92;
 export const MOVE_SPEED = 4.1;
 export const JUMP_SPEED = -10.5;
 export const GRAVITY = 0.58;
+export const AIR_KNOCKBACK_SPEED = 2.4;
 export const PICKUP_RADIUS = 58;
 export const DROP_ORDER = ["cloak", "head", "armor", "weapon"] as const;
 export const OWNER_PICKUP_LOCK_FRAMES = 30;

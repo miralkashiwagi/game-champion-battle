@@ -6,15 +6,15 @@ export const BAREHAND_COMBO: AttackSpec[] = [1, 2, 3].map((step) => ({
   name: `Barehand ${step}`,
   damage: 4,
   range: 58,
-  startupFrames: 5,
-  activeFrames: 4,
-  recoveryFrames: 7,
+  startupFrames: 10,
+  activeFrames: 6,
+  recoveryFrames: 12,
   effect: "hitstun",
   guardPierce: false
 }));
 
 export const BAREHAND_HOLD_ATTACK: AttackSpec = {
   id: "barehand_hold", motionId: "barehand_hold", name: "Heavy Punch",
-  damage: 8, range: 62, startupFrames: 18, activeFrames: 4, recoveryFrames: 14,
+  damage: 8, range: 62, startupFrames: 24, activeFrames: 6, recoveryFrames: 18,
   effect: "kneel", guardPierce: false
 };

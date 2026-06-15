@@ -211,6 +211,27 @@ test("防具の被弾フックが攻撃側をノックバックする", () => {
   assert.equal(saladin.velocity.x, 7);
 });
 
+test("空中被弾の水平移動速度は従来値の半分になる", () => {
+  const sim = setup();
+  const [silver, saladin] = players(sim);
+  silver.position.x = 500;
+  saladin.position.x = 560;
+  silver.facing = 1;
+  sim.startAttack(silver, { id: "air-test", motionId: "air-test", name: "air-test", damage: 0, range: 90, startupFrames: 0, activeFrames: 2, recoveryFrames: 1, effect: "air", guardPierce: true });
+  sim.tick();
+  assert.equal(saladin.velocity.x, 2.4);
+});
+
+test("通常攻撃は大振りに見えるだけのフレーム数を持つ", async () => {
+  const { EQUIPMENT_REGISTRY } = await import("../src/equipment/registry.ts");
+  for (const equipmentId of ["silver_knight_sword", "saladin_twin_blades", "syal_twin_blades"]) {
+    for (const attack of EQUIPMENT_REGISTRY[equipmentId].definition.combo) {
+      assert.ok(attack.startupFrames >= 8);
+      assert.ok(attack.startupFrames + attack.activeFrames + attack.recoveryFrames >= 22);
+    }
+  }
+});
+
 test("攻撃モーションIDと開始フレームが同一攻撃の再実行ごとに更新される", () => {
   const sim = setup();
   const [p1] = players(sim);

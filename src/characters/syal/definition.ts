@@ -9,5 +9,5 @@ export const definition = {
   initialEquipment: { cloak: "syal_cloak", head: "sample_helmet", armor: "sample_armor", weapon: "syal_twin_blades" },
   barehandCombo: BAREHAND_COMBO,
   barehandHoldAttack: BAREHAND_HOLD_ATTACK,
-  guardCounter: { id: "syal_guard_counter", motionId: "syal_guard_counter", name: "Passing Counter", damage: 9, range: 88, startupFrames: 3, activeFrames: 5, recoveryFrames: 12, effect: "air", movement: 70, guardPierce: false }
+  guardCounter: { id: "syal_guard_counter", motionId: "syal_guard_counter", name: "Passing Counter", damage: 9, range: 88, startupFrames: 8, activeFrames: 6, recoveryFrames: 16, effect: "air", movement: 70, guardPierce: false }
 } satisfies CharacterDefinition<"syal">;

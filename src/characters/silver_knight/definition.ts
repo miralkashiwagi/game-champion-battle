@@ -9,5 +9,5 @@ export const definition = {
   initialEquipment: { cloak: "silver_knight_cloak", head: "silver_knight_helmet", armor: "silver_knight_armor", weapon: "silver_knight_sword" },
   barehandCombo: BAREHAND_COMBO,
   barehandHoldAttack: BAREHAND_HOLD_ATTACK,
-  guardCounter: { id: "silver_guard_counter", motionId: "silver_guard_counter", name: "Guard Counter", damage: 10, range: 82, startupFrames: 1, activeFrames: 6, recoveryFrames: 6, effect: "air", guardPierce: false }
+  guardCounter: { id: "silver_guard_counter", motionId: "silver_guard_counter", name: "Guard Counter", damage: 10, range: 82, startupFrames: 8, activeFrames: 6, recoveryFrames: 12, effect: "air", guardPierce: false }
 } satisfies CharacterDefinition<"silver_knight">;

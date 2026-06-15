@@ -3,6 +3,7 @@ import {
   DROP_ORDER,
   GRAVITY,
   GROUND_Y,
+  AIR_KNOCKBACK_SPEED,
   INITIAL_HP,
   JUMP_SPEED,
   MATCH_TIME_MS,
@@ -305,7 +306,7 @@ export class MatchSimulation {
         defender.state = "AirDamaged";
         defender.stateTimer = 45;
         defender.velocity.y = -7.5;
-        defender.velocity.x = attacker.facing * 4.8;
+        defender.velocity.x = attacker.facing * AIR_KNOCKBACK_SPEED;
       } else if (spec.effect === "stun") {
         defender.state = "Stunned";
         defender.stateTimer = 180;

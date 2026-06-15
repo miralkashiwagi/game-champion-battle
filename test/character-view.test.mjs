@@ -96,7 +96,7 @@ test("攻撃モーションはgameRootのサーバー座標を変更しない", 
     worldY: 0,
     activeActionId: "saladin_lunar_slash",
     actionStartedFrame: 10,
-    snapshotFrame: 18
+    snapshotFrame: 24
   }, 1 / 60, 1);
   assert.equal(view.root.position.x, 3);
   assert.notEqual(view.visualRoot.position.z, 0);
@@ -157,7 +157,7 @@ test("SyalのmotionIdはSyal用Controllerで共通攻撃ポーズを再生する
     worldY: 0,
     activeActionId: "syal_lunar_slash",
     actionStartedFrame: 2,
-    snapshotFrame: 10
+    snapshotFrame: 16
   }, 1 / 60, 1);
   assert.equal(view.motionPlayer.motionController, view.visual.motionController);
   assert.notEqual(view.visualRoot.position.z, 0);
@@ -223,7 +223,7 @@ test("スクリプトモデルの攻撃も肘と膝を使用する", () => {
   const view = new ProceduralCharacterView("saladin");
   view.update({
     state: "AttackActive", facing: 1, worldY: 0,
-    activeActionId: "saladin_lunar_slash", actionStartedFrame: 2, snapshotFrame: 10
+    activeActionId: "saladin_lunar_slash", actionStartedFrame: 2, snapshotFrame: 16
   }, 1 / 60, 0);
   assert.notEqual(view.rig.getBone("rightLowerArm").rotation.z, 0);
   assert.notEqual(view.rig.getBone("rightLowerLeg").rotation.x, 0);
