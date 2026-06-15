@@ -7,7 +7,7 @@ import { createShowcaseEquipment, faceShowcaseCamera } from "../src/client/scene
 const equipmentSets = {
   silver_knight: { cloak: "silver_knight_cloak", head: "silver_knight_helmet", armor: "silver_knight_armor", weapon: "silver_knight_sword" },
   saladin: { cloak: "saladin_cloak", head: "saladin_headgear", armor: "saladin_armor", weapon: "saladin_twin_blades" },
-  syal: { cloak: "syal_cloak", head: "sample_helmet", armor: "syal_armor", weapon: "syal_twin_blades" }
+  syal: { cloak: "syal_cloak", head: "sample_helmet", armor: "sample_armor", weapon: "syal_twin_blades" }
 };
 const fullEquipment = (characterId) => Object.fromEntries(
   Object.entries(equipmentSets[characterId]).map(([slot, equipmentId]) => [slot, { id: `${equipmentId}-item`, equipmentId }])
@@ -26,6 +26,20 @@ test("ショーケース装備はキャラクターの初期equipmentIdから生
     assert.equal(view.equipment.size, 4);
     view.dispose();
   }
+});
+
+test("装着用とフィールド用GLBはURLだけを共有し変換を分離する", async () => {
+  const { EQUIPMENT_REGISTRY } = await import("../src/equipment/registry.ts");
+  const THREE = await import("three");
+  const visual = EQUIPMENT_REGISTRY.sample_armor.visual;
+  const definition = visual.createAttachments({
+    THREE,
+    material: (color) => new THREE.MeshStandardMaterial({ color }),
+    makeBlade: () => null
+  });
+  assert.equal(definition.attachments[0].model.url, visual.fieldModel.url);
+  assert.notDeepEqual(definition.attachments[0].model.position, visual.fieldModel.position);
+  assert.equal(definition.attachments[0].model.position[2], -.1);
 });
 
 test("スクリプトモデルは装備を必要時だけSocketへ生成する", () => {
@@ -56,14 +70,21 @@ test("スクリプトモデルは装備を必要時だけSocketへ生成する",
 test("GLB装備はスクリプトモデルをフォールバックとして保持する", async () => {
   const { EQUIPMENT_REGISTRY } = await import("../src/equipment/registry.ts");
   const THREE = await import("three");
-  const definition = EQUIPMENT_REGISTRY.sample_helmet.visual.createAttachments({
-    THREE,
-    material: (color) => new THREE.MeshStandardMaterial({ color }),
-    makeBlade: () => null
-  });
-  assert.equal(definition.attachments[0].socket, "headAccessory");
-  assert.equal(definition.attachments[0].model.url, "/equipment/head/sample_helmet/model.glb");
-  assert.ok(definition.attachments[0].object.children.length > 0);
+  for (const [equipmentId, socket, url] of [
+    ["sample_helmet", "headAccessory", "/equipment/head/sample_helmet/model.glb"],
+    ["sample_armor", "chestArmor", "/equipment/armor/sample_armor/model.glb"]
+  ]) {
+    const definition = EQUIPMENT_REGISTRY[equipmentId].visual.createAttachments({
+      THREE,
+      material: (color) => new THREE.MeshStandardMaterial({ color }),
+      makeBlade: () => null
+    });
+    assert.equal(definition.attachments[0].socket, socket);
+    assert.equal(definition.attachments[0].model.url, url);
+    assert.ok(definition.attachments[0].object.children.length > 0);
+    assert.equal(definition.attachments[0].object.userData.isEquipmentFallback, true);
+    assert.equal(definition.attachments[0].object.userData.equipmentSlot, EQUIPMENT_REGISTRY[equipmentId].definition.slot);
+  }
 });
 
 test("攻撃モーションはgameRootのサーバー座標を変更しない", () => {

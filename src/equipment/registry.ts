@@ -8,6 +8,7 @@ import { registration as sampleHelmet } from "./head/sample_helmet/index.ts";
 import { registration as silverKnightArmor } from "./armor/silver_knight_armor/index.ts";
 import { registration as saladinArmor } from "./armor/saladin_armor/index.ts";
 import { registration as syalArmor } from "./armor/syal_armor/index.ts";
+import { registration as sampleArmor } from "./armor/sample_armor/index.ts";
 import { registration as silverKnightSword } from "./weapon/silver_knight_sword/index.ts";
 import { registration as saladinTwinBlades } from "./weapon/saladin_twin_blades/index.ts";
 import { registration as syalTwinBlades } from "./weapon/syal_twin_blades/index.ts";
@@ -19,7 +20,7 @@ const registrations = {
   saladin_cloak: saladinCloak, saladin_headgear: saladinHeadgear,
   saladin_armor: saladinArmor, saladin_twin_blades: saladinTwinBlades,
   syal_cloak: syalCloak, syal_headgear: syalHeadgear, sample_helmet: sampleHelmet,
-  syal_armor: syalArmor, syal_twin_blades: syalTwinBlades
+  syal_armor: syalArmor, sample_armor: sampleArmor, syal_twin_blades: syalTwinBlades
 } as const;
 
 export type RegisteredEquipmentId = keyof typeof registrations;
