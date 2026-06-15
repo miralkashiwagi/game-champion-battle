@@ -58,6 +58,14 @@ export interface CharacterRig<Node = unknown> {
 export interface EquipmentAttachment<Node = THREE.Object3D> {
   socket: AttachmentSocket;
   object: Node;
+  model?: EquipmentModelVisual;
+  position?: [number, number, number];
+  rotation?: [number, number, number];
+  scale?: number;
+}
+
+export interface EquipmentModelVisual {
+  url: string;
   position?: [number, number, number];
   rotation?: [number, number, number];
   scale?: number;
@@ -225,6 +233,7 @@ export interface EquipmentAttachmentVisualContext extends EquipmentVisualContext
 export interface EquipmentVisualFactory {
   createAttachments: (context: EquipmentAttachmentVisualContext) => EquipmentVisualDefinition;
   createFieldItem: (context: EquipmentVisualContext) => THREE.Group;
+  fieldModel?: EquipmentModelVisual;
 }
 
 export interface EquipmentRegistration<Id extends string = string> {

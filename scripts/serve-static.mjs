@@ -7,8 +7,10 @@ const port = Number(process.env.PORT || 8788);
 const mime = {
   ".html": "text/html; charset=utf-8",
   ".css": "text/css; charset=utf-8",
+  ".glb": "model/gltf-binary",
   ".js": "text/javascript; charset=utf-8",
-  ".svg": "image/svg+xml"
+  ".svg": "image/svg+xml",
+  ".vrm": "model/gltf-binary"
 };
 
 createServer(async (req, res) => {

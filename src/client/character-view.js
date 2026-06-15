@@ -26,6 +26,7 @@ const SHARED_FALLBACK_MODEL = {
 
 export const MODEL_CONTRACT = Object.freeze({
   renderer: "script",
+  frontAxis: "+Z",
   humanoidBones: [
     "hips", "spine", "chest", "head", "leftShoulder", "rightShoulder",
     "leftUpperArm", "rightUpperArm", "leftLowerArm", "rightLowerArm", "leftHand", "rightHand",
@@ -228,7 +229,12 @@ export class ProceduralCharacterView {
       target.add(object);
       objects.push(object);
     }
-    this.equipment.set(slot, { itemKey, equipmentId, objects, motions: definition.motions || {} });
+    const mounted = { itemKey, equipmentId, objects, motions: definition.motions || {} };
+    this.equipment.set(slot, mounted);
+    for (const attachment of definition.attachments) {
+      if (!attachment.model || !objects.includes(attachment.object)) continue;
+      loadEquipmentModel(attachment.object, attachment.model, () => this.equipment.get(slot) === mounted);
+    }
   }
 
   removeEquipment(slot) {
@@ -261,7 +267,9 @@ export class ProceduralCharacterView {
 
   update(snapshot, delta, elapsed) {
     this.root.position.y = Math.max(0, snapshot?.worldY || 0);
-    this.root.rotation.y = snapshot?.facing === -1 ? -Math.PI / 2 : Math.PI / 2;
+    if (snapshot?.facing != null) {
+      this.root.rotation.y = snapshot.facing === -1 ? -Math.PI / 2 : Math.PI / 2;
+    }
     this.motionPlayer.update(snapshot, delta, elapsed);
     this.vrm?.update(delta);
     const attacking = snapshot?.state === "AttackActive" && snapshot?.activeActionId;
@@ -336,7 +344,38 @@ export function createFieldItemView(equipmentId) {
   const slot = registration.definition.slot;
   root.userData.slot = slot;
   root.userData.equipmentId = equipmentId;
+  if (registration.visual.fieldModel && typeof window !== "undefined") {
+    loadEquipmentModel(root, registration.visual.fieldModel, () => Boolean(root.parent));
+  }
   return root;
+}
+
+async function loadEquipmentModel(container, model, isCurrent) {
+  if (typeof window === "undefined") return;
+  try {
+    const gltf = await new GLTFLoader().loadAsync(model.url);
+    if (!isCurrent()) {
+      disposeGroup(gltf.scene);
+      return;
+    }
+    const loaded = gltf.scene;
+    if (model.position) loaded.position.fromArray(model.position);
+    if (model.rotation) loaded.rotation.fromArray(model.rotation);
+    if (model.scale != null) loaded.scale.setScalar(model.scale);
+    loaded.traverse((object) => {
+      if (!object.isMesh) return;
+      object.castShadow = true;
+      object.receiveShadow = true;
+    });
+    for (const child of [...container.children]) {
+      child.removeFromParent();
+      disposeGroup(child);
+    }
+    container.add(loaded);
+    container.userData.modelLoaded = true;
+  } catch (error) {
+    container.userData.modelLoadError = error;
+  }
 }
 
 function collectAttackSpecs() {

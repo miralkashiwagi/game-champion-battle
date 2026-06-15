@@ -126,12 +126,13 @@ test("キャラクターレジストリが登録順と不明IDのフォールバ
   assert.equal(normalizeCharacterId("unknown"), DEFAULT_CHARACTER_ID);
 });
 
-test("Syalはdefinitionで指定された独立装備を生成する", () => {
+test("Syalはdefinitionで指定された装備を生成する", () => {
   const sim = new MatchSimulation();
   sim.addPlayer("p1", "syal-player", 1000, "syal");
   const syal = sim.players.get("p1");
+  const expected = ["syal_cloak", "sample_helmet", "syal_armor", "syal_twin_blades"];
   for (const item of Object.values(syal.equipment)) {
-    assert.match(item.equipmentId, /^syal_/);
+    assert.ok(expected.includes(item.equipmentId));
     assert.match(item.id, new RegExp(`_${item.equipmentId}_`));
   }
 });
@@ -193,7 +194,7 @@ test("SyalのWindwallはSyal頭装備のBehaviorを実行する", () => {
   sim.setInput("p2", { ...idleInput(1), skills: { head: true } });
   sim.tick();
   assert.equal(syal.attackName, "Windwall");
-  assert.equal(syal.equipment.head.equipmentId, "syal_headgear");
+  assert.equal(syal.equipment.head.equipmentId, "sample_helmet");
   assert.equal(silver.state, "Hitstun");
   assert.equal(silver.stateTimer, 6);
 });

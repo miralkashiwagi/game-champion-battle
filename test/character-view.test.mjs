@@ -1,12 +1,13 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { ProceduralCharacterView } from "../src/client/character-view.js";
-import { createShowcaseEquipment } from "../src/client/scene.js";
+import * as THREE from "three";
+import { MODEL_CONTRACT, ProceduralCharacterView } from "../src/client/character-view.js";
+import { createShowcaseEquipment, faceShowcaseCamera } from "../src/client/scene.js";
 
 const equipmentSets = {
   silver_knight: { cloak: "silver_knight_cloak", head: "silver_knight_helmet", armor: "silver_knight_armor", weapon: "silver_knight_sword" },
   saladin: { cloak: "saladin_cloak", head: "saladin_headgear", armor: "saladin_armor", weapon: "saladin_twin_blades" },
-  syal: { cloak: "syal_cloak", head: "syal_headgear", armor: "syal_armor", weapon: "syal_twin_blades" }
+  syal: { cloak: "syal_cloak", head: "sample_helmet", armor: "syal_armor", weapon: "syal_twin_blades" }
 };
 const fullEquipment = (characterId) => Object.fromEntries(
   Object.entries(equipmentSets[characterId]).map(([slot, equipmentId]) => [slot, { id: `${equipmentId}-item`, equipmentId }])
@@ -50,6 +51,19 @@ test("スクリプトモデルは装備を必要時だけSocketへ生成する",
   assert.equal(syal.rig.getSocket("leftHandGrip").children.length, 1);
   assert.equal(syal.rig.getSocket("rightHandGrip").children.length, 1);
   syal.dispose();
+});
+
+test("GLB装備はスクリプトモデルをフォールバックとして保持する", async () => {
+  const { EQUIPMENT_REGISTRY } = await import("../src/equipment/registry.ts");
+  const THREE = await import("three");
+  const definition = EQUIPMENT_REGISTRY.sample_helmet.visual.createAttachments({
+    THREE,
+    material: (color) => new THREE.MeshStandardMaterial({ color }),
+    makeBlade: () => null
+  });
+  assert.equal(definition.attachments[0].socket, "headAccessory");
+  assert.equal(definition.attachments[0].model.url, "/equipment/head/sample_helmet/model.glb");
+  assert.ok(definition.attachments[0].object.children.length > 0);
 });
 
 test("攻撃モーションはgameRootのサーバー座標を変更しない", () => {
@@ -152,6 +166,36 @@ test("スクリプトモデルもVRM互換の骨格階層を持つ", () => {
   assert.equal(view.rig.getBone("leftLowerArm").parent, view.rig.getBone("leftUpperArm"));
   assert.equal(view.rig.getBone("leftHand").parent, view.rig.getBone("leftLowerArm"));
   view.dispose();
+});
+
+test("スクリプトモデルとVRM 1.0はローカル+Zを正面として扱う", () => {
+  assert.equal(MODEL_CONTRACT.frontAxis, "+Z");
+  const view = new ProceduralCharacterView("silver_knight");
+  const forward = new THREE.Vector3();
+
+  view.update({ state: "Idle", facing: 1, worldY: 0 }, 1 / 60, 0);
+  view.root.getWorldDirection(forward);
+  assert.ok(forward.x > .99);
+
+  view.update({ state: "Idle", facing: -1, worldY: 0 }, 1 / 60, 0);
+  view.root.getWorldDirection(forward);
+  assert.ok(forward.x < -.99);
+  view.dispose();
+});
+
+test("プレビューは全モデルのローカル+Zをカメラへ向ける", () => {
+  for (const characterId of Object.keys(equipmentSets)) {
+    const view = new ProceduralCharacterView(characterId);
+    view.root.position.set(characterId === "silver_knight" ? -4.9 : characterId === "syal" ? 4.9 : 0, 0, .2);
+    const cameraPosition = new THREE.Vector3(0, 3.4, 9.2);
+    faceShowcaseCamera(view.root, cameraPosition);
+    view.update({ state: "Idle", worldY: 0 }, 1 / 60, 0);
+
+    const forward = view.root.getWorldDirection(new THREE.Vector3()).setY(0).normalize();
+    const towardCamera = cameraPosition.clone().sub(view.root.position).setY(0).normalize();
+    assert.ok(forward.dot(towardCamera) > .999);
+    view.dispose();
+  }
 });
 
 test("スクリプトモデルの攻撃も肘と膝を使用する", () => {

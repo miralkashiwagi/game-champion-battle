@@ -231,14 +231,14 @@ export class ChampionScene {
       views.forEach((view, index) => {
         const offset = index - (views.length - 1) / 2;
         view.root.position.set(offset * spacing, 0, .2);
-        view.root.rotation.y = this.mode === "title" ? (offset <= 0 ? Math.PI / 2 : -Math.PI / 2) : (offset <= 0 ? .25 : -.25);
+        faceShowcaseCamera(view.root, this.targetCamera);
       });
     } else {
       const selected = this.showcaseViews.get(this.selectedCharacterId);
       for (const view of views) view.root.visible = false;
       selected.root.visible = true;
       selected.root.position.set(this.mode === "detail" || this.mode === "lobby" ? -2.8 : 0, 0, .25);
-      selected.root.rotation.y = .28;
+      faceShowcaseCamera(selected.root, this.targetCamera);
       selected.root.scale.setScalar(this.mode === "detail" ? 1.38 : 1.24);
     }
   }
@@ -356,7 +356,7 @@ export class ChampionScene {
       this.updateFieldItems(delta);
     } else {
       for (const [index, view] of [...this.showcaseViews.values()].entries()) {
-        if (view.root.visible) view.update({ state: "Idle", facing: index < this.showcaseViews.size / 2 ? 1 : -1, worldY: 0 }, delta, this.elapsed);
+        if (view.root.visible) view.update({ state: "Idle", worldY: 0 }, delta, this.elapsed);
       }
     }
     this.renderer.render(this.scene, this.camera);
@@ -411,6 +411,10 @@ export function createShowcaseEquipment(characterId) {
   return Object.fromEntries(
     Object.entries(initialEquipment).map(([slot, equipmentId]) => [slot, { equipmentId }])
   );
+}
+
+export function faceShowcaseCamera(root, cameraPosition) {
+  root.rotation.y = Math.atan2(cameraPosition.x - root.position.x, cameraPosition.z - root.position.z);
 }
 
 function worldX(x) {

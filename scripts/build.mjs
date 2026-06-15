@@ -1,11 +1,16 @@
 import { build } from "esbuild";
-import { cp, mkdir, rm } from "node:fs/promises";
+import { cp, mkdir, rm, stat } from "node:fs/promises";
+import { extname } from "node:path";
 
 await mkdir("dist/client", { recursive: true });
 await rm("dist/client/src", { recursive: true, force: true });
 await cp("public", "dist/client", { recursive: true });
 await mkdir("dist/client/characters/syal", { recursive: true });
 await cp("src/characters/syal/syal.vrm", "dist/client/characters/syal/syal.vrm");
+await cp("src/equipment", "dist/client/equipment", {
+  recursive: true,
+  filter: async (source) => (await stat(source)).isDirectory() || extname(source) === ".glb"
+});
 
 await build({
   entryPoints: ["src/client/app.js"],

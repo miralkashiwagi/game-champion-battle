@@ -4,6 +4,7 @@ import { registration as syalCloak } from "./cloak/syal_cloak/index.ts";
 import { registration as silverKnightHelmet } from "./head/silver_knight_helmet/index.ts";
 import { registration as saladinHeadgear } from "./head/saladin_headgear/index.ts";
 import { registration as syalHeadgear } from "./head/syal_headgear/index.ts";
+import { registration as sampleHelmet } from "./head/sample_helmet/index.ts";
 import { registration as silverKnightArmor } from "./armor/silver_knight_armor/index.ts";
 import { registration as saladinArmor } from "./armor/saladin_armor/index.ts";
 import { registration as syalArmor } from "./armor/syal_armor/index.ts";
@@ -17,7 +18,7 @@ const registrations = {
   silver_knight_armor: silverKnightArmor, silver_knight_sword: silverKnightSword,
   saladin_cloak: saladinCloak, saladin_headgear: saladinHeadgear,
   saladin_armor: saladinArmor, saladin_twin_blades: saladinTwinBlades,
-  syal_cloak: syalCloak, syal_headgear: syalHeadgear,
+  syal_cloak: syalCloak, syal_headgear: syalHeadgear, sample_helmet: sampleHelmet,
   syal_armor: syalArmor, syal_twin_blades: syalTwinBlades
 } as const;
 
