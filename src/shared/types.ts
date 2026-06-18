@@ -11,6 +11,8 @@ export type MatchPhase = "waiting" | "countdown" | "playing" | "finished";
 export type CharacterState =
   | "Idle"
   | "Move"
+  | "Dash"
+  | "Jump"
   | "AttackStartup"
   | "AttackActive"
   | "AttackRecovery"

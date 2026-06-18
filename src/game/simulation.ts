@@ -1,5 +1,6 @@
 import {
   DEFAULT_INPUT,
+  DASH_SPEED,
   DROP_ORDER,
   GRAVITY,
   GROUND_Y,
@@ -14,6 +15,7 @@ import {
   STAGE_WIDTH,
   TICK_MS
 } from "../shared/constants.ts";
+import { COMMON_BAREHAND_COMBO, COMMON_GUARD_COUNTER } from "../characters/common.ts";
 import { CHARACTER_REGISTRY } from "../characters/registry.ts";
 import { EQUIPMENT_REGISTRY } from "../equipment/registry.ts";
 import { attackForEquipment, CHARACTER_SPECS, createEquipment, type AttackSpec } from "../shared/characters.ts";
@@ -172,7 +174,7 @@ export class MatchSimulation {
       player.state = "Idle";
     }
 
-    const canAct = ["Idle", "Move", "Guard", "GuardCounterWindow"].includes(player.state);
+    const canAct = ["Idle", "Move", "Dash", "Guard", "GuardCounterWindow"].includes(player.state);
     const headSkill = player.equipment.head ? attackForEquipment(player.equipment.head) : undefined;
     if (headSkill?.usableWhileHit && input.skills.head && !player.previousInput.skills.head) {
       this.trySkill(player, opponent, "head", true);
@@ -197,13 +199,16 @@ export class MatchSimulation {
       if (input.attack) {
         player.attackHeldFrames += 1;
       } else {
-        if (player.previousInput.attack && player.attackHeldFrames >= 18) this.startAttack(player, this.getHoldAttack(player));
+        if (player.previousInput.attack && player.attackHeldFrames >= 18) {
+          const holdAttack = this.getHoldAttack(player);
+          if (holdAttack) this.startAttack(player, holdAttack);
+        }
         player.attackHeldFrames = 0;
       }
 
       if (input.attack && !player.previousInput.attack) {
         if (player.state === "GuardCounterWindow") {
-          this.startAttack(player, CHARACTER_SPECS[player.characterId].guardCounter);
+          this.startAttack(player, COMMON_GUARD_COUNTER);
         } else {
           this.startAttack(player, this.getComboAttack(player));
         }
@@ -211,14 +216,18 @@ export class MatchSimulation {
 
       if (!player.activeAttack && player.state !== "Guard") {
         const axis = Number(input.right) - Number(input.left);
-        player.velocity.x = axis * MOVE_SPEED;
+        const dashing = input.down && axis !== 0 && player.position.y >= GROUND_Y;
+        player.velocity.x = axis * (dashing ? DASH_SPEED : MOVE_SPEED);
         if (axis !== 0) {
           player.facing = axis > 0 ? 1 : -1;
-          player.state = "Move";
-        } else if (player.state === "Move") {
+          player.state = dashing ? "Dash" : "Move";
+        } else if (player.state === "Move" || player.state === "Dash") {
           player.state = "Idle";
         }
-        if (input.up && player.position.y >= GROUND_Y) player.velocity.y = JUMP_SPEED;
+        if (input.up && player.position.y >= GROUND_Y) {
+          player.velocity.y = JUMP_SPEED;
+          player.state = "Jump";
+        }
       }
     }
 
@@ -232,6 +241,8 @@ export class MatchSimulation {
       if (player.state === "AirDamaged") {
         player.state = "Down";
         player.stateTimer = 45;
+      } else if (player.state === "Jump") {
+        player.state = "Idle";
       }
     }
 
@@ -395,7 +406,7 @@ export class MatchSimulation {
     if (!spec) return;
     const registration = EQUIPMENT_REGISTRY[item.equipmentId];
     const skill = spec;
-    const canUse = force || ["Idle", "Move", "Guard", "GuardCounterWindow"].includes(player.state);
+    const canUse = force || ["Idle", "Move", "Dash", "Guard", "GuardCounterWindow"].includes(player.state);
     if (!canUse || skill.passive) return;
     registration.behavior.beforeSkill?.({ skill, player, opponent });
     this.startAttack(player, spec);
@@ -404,17 +415,16 @@ export class MatchSimulation {
 
   private getComboAttack(player: PlayerRuntime): AttackSpec {
     const weapon = player.equipment.weapon;
-    const character = CHARACTER_SPECS[player.characterId];
-    const combo = weapon ? EQUIPMENT_REGISTRY[weapon.equipmentId].definition.combo : character.barehandCombo;
+    const combo = weapon ? EQUIPMENT_REGISTRY[weapon.equipmentId].definition.combo : COMMON_BAREHAND_COMBO;
     if (!combo?.length) throw new Error(`Weapon ${weapon?.equipmentId} has no combo`);
     const next = player.comboStep % combo.length;
     player.comboStep = next + 1;
     return combo[next] ?? combo[0]!;
   }
 
-  private getHoldAttack(player: PlayerRuntime): AttackSpec {
+  private getHoldAttack(player: PlayerRuntime): AttackSpec | undefined {
     const weapon = player.equipment.weapon;
-    if (!weapon) return CHARACTER_SPECS[player.characterId].barehandHoldAttack;
+    if (!weapon) return undefined;
     const holdAttack = EQUIPMENT_REGISTRY[weapon.equipmentId].definition.holdAttack;
     if (!holdAttack) throw new Error(`Weapon ${weapon.equipmentId} has no hold attack`);
     return holdAttack;

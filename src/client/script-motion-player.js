@@ -1,5 +1,5 @@
 const STATE_MOTIONS = {
-  Idle: "idle", Move: "move", Guard: "guard", GuardCounterWindow: "guard",
+  Idle: "idle", Move: "move", Dash: "dash", Jump: "jump", Guard: "guard", GuardCounterWindow: "guard",
   Hitstun: "hit", KneelDown: "kneel", AirDamaged: "air", Down: "down",
   Stunned: "stunned", Dead: "dead"
 };
@@ -30,7 +30,7 @@ export class ScriptMotionPlayer {
     this.attackSpecs = attackSpecs;
     this.motionController = motionController;
     this.resolveMotionController = resolveMotionController || (() => motionController);
-    this.stateStyle = { ...DEFAULT_STATE_STYLE, ...motionController.stateStyle };
+    this.stateStyle = { ...DEFAULT_STATE_STYLE };
     this.baseVisualY = visualRoot.position.y;
     this.basePositions = new Map(MOTION_BONES.map((name) => [name, rig.getBone(name).position.clone()]));
     this.time = Math.random() * 10;
@@ -64,7 +64,7 @@ export class ScriptMotionPlayer {
   applyState(motionId, snapshot = {}) {
     const b = getRigBones(this.rig);
     const style = this.stateStyle;
-    const phase = this.time * (motionId === "move" ? style.moveSpeed : 2.3);
+    const phase = this.time * (motionId === "move" || motionId === "dash" ? style.moveSpeed : 2.3);
     if (motionId === "idle") {
       b.hips.position.y += Math.sin(phase) * style.idleBob;
       b.chest.rotation.x = style.idleLean;
@@ -108,6 +108,56 @@ export class ScriptMotionPlayer {
       b.rightArm.rotation.z = .08;
       b.leftLowerArm.rotation.z = -.42 - rightPlant * .32;
       b.rightLowerArm.rotation.z = .42 + leftPlant * .32;
+    } else if (motionId === "dash") {
+      const stride = Math.sin(phase * 1.35);
+      const leftPlant = Math.max(0, -stride);
+      const rightPlant = Math.max(0, stride);
+      b.hips.position.y += (1 - Math.abs(stride)) * style.moveBob * .65;
+      b.hips.position.z += .04;
+      b.hips.rotation.x = -.18;
+      b.hips.rotation.y = stride * style.moveTwist * .72;
+      b.spine.rotation.x = -.2;
+      b.spine.rotation.y = -stride * style.moveTwist * .45;
+      b.chest.rotation.x = -.36;
+      b.chest.rotation.y = -stride * style.moveTwist * .55;
+      b.head.rotation.x = .1;
+      b.leftShoulder.rotation.y = stride * .1;
+      b.rightShoulder.rotation.y = stride * .1;
+      b.leftLeg.rotation.x = stride * .92;
+      b.rightLeg.rotation.x = -stride * .92;
+      b.leftLowerLeg.rotation.x = leftPlant * 1.22 + rightPlant * .2;
+      b.rightLowerLeg.rotation.x = rightPlant * 1.22 + leftPlant * .2;
+      b.leftFoot.rotation.x = -leftPlant * .56 + rightPlant * .18;
+      b.rightFoot.rotation.x = -rightPlant * .56 + leftPlant * .18;
+      b.leftArm.rotation.x = -stride * .78 - .18;
+      b.rightArm.rotation.x = stride * .78 - .18;
+      b.leftArm.rotation.z = -.12;
+      b.rightArm.rotation.z = .12;
+      b.leftLowerArm.rotation.z = -.5 - rightPlant * .28;
+      b.rightLowerArm.rotation.z = .5 + leftPlant * .28;
+    } else if (motionId === "jump") {
+      const verticalVelocity = snapshot?.velocity?.y || 0;
+      const rising = clamp01(-verticalVelocity / 10.5);
+      const falling = clamp01(verticalVelocity / 10);
+      b.hips.position.y += .04 + rising * .05;
+      b.hips.rotation.x = -.08 - rising * .1 + falling * .08;
+      b.spine.rotation.x = -.08 - rising * .08 + falling * .1;
+      b.chest.rotation.x = -.16 - rising * .12 + falling * .16;
+      b.head.rotation.x = .08 + rising * .06 - falling * .04;
+      b.leftShoulder.rotation.z = -.08;
+      b.rightShoulder.rotation.z = .08;
+      b.leftArm.rotation.x = -.28 - rising * .18 + falling * .24;
+      b.rightArm.rotation.x = .28 + rising * .18 - falling * .24;
+      b.leftArm.rotation.z = -.36;
+      b.rightArm.rotation.z = .36;
+      b.leftLowerArm.rotation.z = -.42;
+      b.rightLowerArm.rotation.z = .42;
+      b.leftLeg.rotation.x = .34 + rising * .26 - falling * .12;
+      b.rightLeg.rotation.x = -.26 - rising * .18 + falling * .22;
+      b.leftLowerLeg.rotation.x = .78 + rising * .18;
+      b.rightLowerLeg.rotation.x = .42 + falling * .2;
+      b.leftFoot.rotation.x = -.28;
+      b.rightFoot.rotation.x = -.2;
     } else if (motionId === "guard") {
       b.chest.rotation.x = style.guardLean;
       b.chest.rotation.y = style.guardTwist;
@@ -218,6 +268,10 @@ export class ScriptMotionPlayer {
       applyPunch(rigBones, id, phase);
       return;
     }
+    if (id === "common_guard_counter") {
+      applyGuardCounter(rigBones, phase, this.visualRoot);
+      return;
+    }
     const motionController = this.resolveMotionController(id) || this.motionController;
     motionController.applyAttack({ id, phase, bones: rigBones, visualRoot: this.visualRoot });
   }
@@ -265,6 +319,25 @@ function applyPunch(bones, id, phase) {
   arm.rotation.x = -1.3 * phase.strike;
   arm.rotation.z = (left ? .35 : -.35) * phase.pose;
   bones.chest.rotation.y = (left ? -.22 : .22) * phase.strike;
+}
+
+function applyGuardCounter(bones, phase, visualRoot) {
+  const windup = phase.pose;
+  const strike = phase.strike;
+  bones.hips.rotation.y = .18 * strike;
+  bones.chest.rotation.x = -.08;
+  bones.chest.rotation.y = .42 * strike - .2 * windup;
+  bones.leftArm.rotation.x = -.72;
+  bones.leftArm.rotation.z = -.46;
+  bones.rightArm.rotation.x = -.28 - .84 * strike;
+  bones.rightArm.rotation.z = .22 - .34 * strike;
+  bones.leftLowerArm.rotation.z = -.52;
+  bones.rightLowerArm.rotation.z = .24 + .3 * strike;
+  bones.leftLeg.rotation.x = -.16 * strike;
+  bones.rightLeg.rotation.x = .18 * strike;
+  bones.leftLowerLeg.rotation.x = .24 * strike;
+  bones.rightLowerLeg.rotation.x = .34 * strike;
+  visualRoot.position.z = .18 * strike;
 }
 
 function smooth(value) {

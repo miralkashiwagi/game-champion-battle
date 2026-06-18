@@ -1,6 +1,6 @@
 import type { AttackSpec } from "../shared/character-types.ts";
 
-export const BAREHAND_COMBO: AttackSpec[] = [1, 2, 3].map((step) => ({
+export const COMMON_BAREHAND_COMBO: AttackSpec[] = [1, 2, 3].map((step) => ({
   id: `barehand_${step}`,
   motionId: `barehand_${step}`,
   name: `Barehand ${step}`,
@@ -13,8 +13,15 @@ export const BAREHAND_COMBO: AttackSpec[] = [1, 2, 3].map((step) => ({
   guardPierce: false
 }));
 
-export const BAREHAND_HOLD_ATTACK: AttackSpec = {
-  id: "barehand_hold", motionId: "barehand_hold", name: "Heavy Punch",
-  damage: 8, range: 62, startupFrames: 24, activeFrames: 6, recoveryFrames: 18,
-  effect: "kneel", guardPierce: false
+export const COMMON_GUARD_COUNTER: AttackSpec = {
+  id: "common_guard_counter",
+  motionId: "common_guard_counter",
+  name: "Guard Counter",
+  damage: 9,
+  range: 84,
+  startupFrames: 8,
+  activeFrames: 6,
+  recoveryFrames: 14,
+  effect: "air",
+  guardPierce: false
 };

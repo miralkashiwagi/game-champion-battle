@@ -2,7 +2,8 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { MatchSimulation } from "../src/game/simulation.ts";
 import { CHARACTER_IDS, DEFAULT_CHARACTER_ID, normalizeCharacterId } from "../src/characters/registry.ts";
-import { CHARACTER_SPECS } from "../src/shared/characters.ts";
+import { COMMON_GUARD_COUNTER } from "../src/characters/common.ts";
+import { DASH_SPEED, MOVE_SPEED } from "../src/shared/constants.ts";
 
 const idleInput = (frame = 0) => ({
   frame,
@@ -160,16 +161,59 @@ test("武器交換はコンボと長押しだけを装備側へ切り替える",
   assert.equal(sim.getHoldAttack(silver).motionId, "saladin_forward_cut");
   assert.equal(sim.getComboAttack(saladin).motionId, "saladin_combo_1");
   assert.equal(sim.getHoldAttack(saladin).motionId, "saladin_forward_cut");
-  assert.equal(CHARACTER_SPECS.silver_knight.guardCounter.motionId, "silver_guard_counter");
 });
 
-test("武器を失うとキャラクターの素手コンボと素手長押しへ戻る", () => {
+test("武器を失うと共通素手コンボへ戻り、素手長押しは攻撃しない", () => {
   const sim = setup();
   const [silver] = players(sim);
   silver.equipment.weapon = null;
 
   assert.match(sim.getComboAttack(silver).motionId, /^barehand_/);
-  assert.equal(sim.getHoldAttack(silver).motionId, "barehand_hold");
+  assert.equal(sim.getHoldAttack(silver), undefined);
+
+  silver.previousInput.attack = true;
+  silver.attackHeldFrames = 18;
+  sim.setInput("p1", idleInput(30));
+  sim.tick();
+  assert.equal(silver.activeActionId, null);
+  assert.equal(silver.attackName, null);
+});
+
+test("ガードカウンターはキャラクター別ではなく共通攻撃を使う", () => {
+  const sim = setup();
+  const [silver] = players(sim);
+  silver.state = "GuardCounterWindow";
+  silver.stateTimer = 30;
+
+  sim.setInput("p1", { ...idleInput(1), attack: true });
+  sim.tick();
+  assert.equal(silver.activeActionId, COMMON_GUARD_COUNTER.motionId);
+});
+
+test("downと左右入力で共通ダッシュ状態になり通常移動より速い", () => {
+  const sim = setup();
+  const [silver] = players(sim);
+  sim.setInput("p1", { ...idleInput(1), right: true, down: true });
+  sim.tick();
+
+  assert.equal(silver.state, "Dash");
+  assert.equal(silver.velocity.x, DASH_SPEED);
+  assert.ok(Math.abs(silver.velocity.x) > MOVE_SPEED);
+});
+
+test("ジャンプ開始時にJump状態になり着地後に復帰する", () => {
+  const sim = setup();
+  const [silver] = players(sim);
+  sim.setInput("p1", { ...idleInput(1), up: true });
+  sim.tick();
+
+  assert.equal(silver.state, "Jump");
+  assert.ok(silver.position.y < 430);
+
+  sim.setInput("p1", idleInput(2));
+  for (let i = 0; i < 60 && silver.state === "Jump"; i++) sim.tick();
+  assert.equal(silver.state, "Idle");
+  assert.equal(silver.velocity.y, 0);
 });
 
 test("被撃中に使用可能な装備スキルは装備Behaviorを実行する", () => {

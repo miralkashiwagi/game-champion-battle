@@ -177,6 +177,24 @@ test("共通Humanoid走行は肩、肘、膝、足首を連動させる", () => 
   view.dispose();
 });
 
+test("共通Humanoidのダッシュとジャンプは全身モーションとして再生される", () => {
+  assert.ok(MODEL_CONTRACT.stateMotions.includes("dash"));
+  assert.ok(MODEL_CONTRACT.stateMotions.includes("jump"));
+
+  const view = new ProceduralCharacterView("silver_knight");
+  view.motionPlayer.time = 0;
+  view.update({ state: "Dash", facing: 1, worldY: 0, velocity: { x: 6.8, y: 0 } }, 1 / 30, 0);
+  assert.notEqual(view.rig.getBone("chest").rotation.x, 0);
+  assert.notEqual(view.rig.getBone("leftLowerArm").rotation.z, 0);
+  assert.notEqual(view.rig.getBone("leftLowerLeg").rotation.x, 0);
+
+  view.update({ state: "Jump", facing: 1, worldY: .5, velocity: { x: 0, y: -8 } }, 1 / 30, 0);
+  assert.notEqual(view.rig.getBone("hips").position.y, view.motionPlayer.basePositions.get("hips").y);
+  assert.notEqual(view.rig.getBone("rightLowerLeg").rotation.x, 0);
+  assert.equal(view.root.position.y, .5);
+  view.dispose();
+});
+
 test("スクリプトモデルもVRM互換の骨格階層を持つ", () => {
   const view = new ProceduralCharacterView("silver_knight");
   assert.equal(view.rig.getBone("spine").parent, view.rig.getBone("hips"));

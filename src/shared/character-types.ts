@@ -9,7 +9,7 @@ export type HumanoidBoneName =
   | "leftUpperLeg" | "rightUpperLeg" | "leftLowerLeg" | "rightLowerLeg" | "leftFoot" | "rightFoot";
 export type AttachmentSocket = "headAccessory" | "chestArmor" | "back" | "leftHandGrip" | "rightHandGrip";
 type CharacterState =
-  | "Idle" | "Move" | "AttackStartup" | "AttackActive" | "AttackRecovery" | "Guard"
+  | "Idle" | "Move" | "Dash" | "Jump" | "AttackStartup" | "AttackActive" | "AttackRecovery" | "Guard"
   | "GuardCounterWindow" | "Hitstun" | "KneelDown" | "AirDamaged" | "Down" | "Stunned" | "Dead";
 type Facing = -1 | 1;
 interface Vec2 { x: number; y: number; }
@@ -145,9 +145,6 @@ export interface CharacterDefinition<Id extends string = string> {
   visualProfile: CharacterVisualProfile;
   ui: CharacterUiDefinition;
   initialEquipment: Record<EquipmentSlot, string>;
-  barehandCombo: AttackSpec[];
-  barehandHoldAttack: AttackSpec;
-  guardCounter: AttackSpec;
 }
 
 export interface CharacterBehaviorPlayer {

@@ -11,6 +11,7 @@ export const GROUND_Y = 430;
 export const PLAYER_WIDTH = 44;
 export const PLAYER_HEIGHT = 92;
 export const MOVE_SPEED = 4.1;
+export const DASH_SPEED = 6.8;
 export const JUMP_SPEED = -10.5;
 export const GRAVITY = 0.58;
 export const AIR_KNOCKBACK_SPEED = 2.4;
