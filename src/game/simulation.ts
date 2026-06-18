@@ -36,7 +36,7 @@ import type {
 interface ActiveAttack {
   spec: AttackSpec;
   startFrame: number;
-  hitDone: boolean;
+  hitsDone: number;
 }
 
 interface PlayerRuntime extends PlayerSnapshot {
@@ -268,7 +268,7 @@ export class MatchSimulation {
 
   startAttack(player: PlayerRuntime, spec: AttackSpec): void {
     if (player.activeAttack || player.state === "Dead") return;
-    player.activeAttack = { spec, startFrame: this.frame, hitDone: false };
+    player.activeAttack = { spec, startFrame: this.frame, hitsDone: 0 };
     player.attackTimer = 0;
     player.attackName = spec.name;
     player.activeActionId = spec.motionId || spec.id;
@@ -280,11 +280,16 @@ export class MatchSimulation {
 
   private resolveAttack(attacker: PlayerRuntime, defender: PlayerRuntime): void {
     const active = attacker.activeAttack;
-    if (!active || active.hitDone) return;
+    if (!active) return;
+    const hitCount = Math.max(1, active.spec.hitCount ?? 1);
+    if (active.hitsDone >= hitCount) return;
     const localTimer = attacker.attackTimer;
     const isActive = localTimer >= active.spec.startupFrames && localTimer <= active.spec.startupFrames + active.spec.activeFrames;
     attacker.state = localTimer < active.spec.startupFrames ? "AttackStartup" : isActive ? "AttackActive" : "AttackRecovery";
     if (!isActive) return;
+    const activeElapsed = localTimer - active.spec.startupFrames;
+    const nextHitFrame = Math.floor((active.spec.activeFrames * active.hitsDone) / hitCount);
+    if (activeElapsed < nextHitFrame) return;
     if (defender.invulnerableUntilFrame >= this.frame || defender.state === "Dead") return;
     const defenderCollision = CHARACTER_REGISTRY[defender.characterId].definition.collision;
     const horizontalReach = active.spec.range + defenderCollision.halfWidth;
@@ -292,7 +297,7 @@ export class MatchSimulation {
     if (Math.abs(attacker.position.y - defender.position.y) > defenderCollision.height) return;
 
     const blocked = this.isBlocking(defender, attacker) && !active.spec.guardPierce;
-    active.hitDone = true;
+    active.hitsDone += 1;
     if (blocked) {
       defender.state = "GuardCounterWindow";
       defender.stateTimer = 30;

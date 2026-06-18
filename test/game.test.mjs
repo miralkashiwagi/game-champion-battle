@@ -138,16 +138,17 @@ test("Syalはdefinitionで指定された装備を生成する", () => {
   }
 });
 
-test("SyalとSaladinの武器は同じ性能を別のmotionIdで保持する", async () => {
+test("Saladinの武器は4段通常攻撃、溜め突き、防御不能3連スラッシュを持つ", async () => {
   const { EQUIPMENT_REGISTRY } = await import("../src/equipment/registry.ts");
   const saladin = EQUIPMENT_REGISTRY.saladin_twin_blades.definition;
   const syal = EQUIPMENT_REGISTRY.syal_twin_blades.definition;
-  assert.deepEqual(
-    syal.combo.map(({ id, motionId, ...attack }) => attack),
-    saladin.combo.map(({ id, motionId, ...attack }) => attack)
-  );
-  assert.match(syal.skill.motionId, /^syal_/);
-  assert.match(saladin.skill.motionId, /^saladin_/);
+
+  assert.equal(saladin.combo.length, 4);
+  assert.equal(saladin.holdAttack.motionId, "saladin_charged_thrust");
+  assert.equal(saladin.holdAttack.effect, "kneel");
+  assert.equal(saladin.skill.motionId, "saladin_slash");
+  assert.equal(saladin.skill.hitCount, 3);
+  assert.equal(saladin.skill.guardPierce, true);
   assert.notEqual(syal, saladin);
   assert.notEqual(syal.combo, saladin.combo);
 });
@@ -158,9 +159,9 @@ test("武器交換はコンボと長押しだけを装備側へ切り替える",
   silver.equipment.weapon = { ...saladin.equipment.weapon, id: "borrowed-saladin-weapon" };
 
   assert.match(sim.getComboAttack(silver).motionId, /^saladin_combo_/);
-  assert.equal(sim.getHoldAttack(silver).motionId, "saladin_forward_cut");
+  assert.equal(sim.getHoldAttack(silver).motionId, "saladin_charged_thrust");
   assert.equal(sim.getComboAttack(saladin).motionId, "saladin_combo_1");
-  assert.equal(sim.getHoldAttack(saladin).motionId, "saladin_forward_cut");
+  assert.equal(sim.getHoldAttack(saladin).motionId, "saladin_charged_thrust");
 });
 
 test("武器を失うと共通素手コンボへ戻り、素手長押しは攻撃しない", () => {
@@ -232,19 +233,7 @@ test("ジャンプ開始時にJump状態になり着地後に復帰する", () =
   assert.equal(silver.velocity.y, 0);
 });
 
-test("被撃中に使用可能な装備スキルは装備Behaviorを実行する", () => {
-  const sim = setup();
-  const [silver, saladin] = players(sim);
-  saladin.state = "Hitstun";
-  saladin.stateTimer = 30;
-  sim.setInput("p2", { ...idleInput(1), skills: { head: true } });
-  sim.tick();
-  assert.equal(saladin.attackName, "Windwall");
-  assert.equal(silver.state, "Hitstun");
-  assert.equal(silver.stateTimer, 6);
-});
-
-test("SyalのWindwallはSyal頭装備のBehaviorを実行する", () => {
+test("SyalのWindwallは被撃中に頭装備Behaviorを実行する", () => {
   const sim = new MatchSimulation();
   sim.addPlayer("p1", "silver-player", 1000, "silver_knight");
   sim.addPlayer("p2", "syal-player", 1000, "syal");
@@ -257,6 +246,60 @@ test("SyalのWindwallはSyal頭装備のBehaviorを実行する", () => {
   assert.equal(syal.equipment.head.equipmentId, "sample_helmet");
   assert.equal(silver.state, "Hitstun");
   assert.equal(silver.stateTimer, 6);
+});
+
+test("Saladinの頭突きは命中した相手を気絶させる", async () => {
+  const { EQUIPMENT_REGISTRY } = await import("../src/equipment/registry.ts");
+  const sim = setup();
+  const [silver, saladin] = players(sim);
+  silver.position.x = 500;
+  saladin.position.x = 560;
+  saladin.facing = -1;
+
+  sim.startAttack(saladin, EQUIPMENT_REGISTRY.saladin_headgear.definition.skill);
+  for (let i = 0; i < 24 && silver.state !== "Stunned"; i++) sim.tick();
+  assert.equal(saladin.attackName, "Headbutt");
+  assert.equal(silver.state, "Stunned");
+  assert.ok(silver.stateTimer > 0);
+});
+
+test("Saladinの溜め突きは相手を膝つきからダウンへ移行させる", async () => {
+  const { EQUIPMENT_REGISTRY } = await import("../src/equipment/registry.ts");
+  const sim = setup();
+  const [silver, saladin] = players(sim);
+  silver.position.x = 500;
+  saladin.position.x = 560;
+  saladin.facing = -1;
+
+  sim.startAttack(saladin, EQUIPMENT_REGISTRY.saladin_twin_blades.definition.holdAttack);
+  for (let i = 0; i < 32 && silver.state !== "KneelDown"; i++) sim.tick();
+  assert.equal(saladin.attackName, "Charged Thrust");
+  assert.equal(silver.state, "KneelDown");
+
+  for (let i = 0; i < 91 && silver.state !== "Down"; i++) sim.tick();
+  assert.equal(silver.state, "Down");
+});
+
+test("Saladinのスラッシュはガード中の相手へ3回命中する", async () => {
+  const { EQUIPMENT_REGISTRY } = await import("../src/equipment/registry.ts");
+  const sim = setup();
+  const [silver, saladin] = players(sim);
+  silver.position.x = 500;
+  saladin.position.x = 560;
+  saladin.facing = -1;
+  silver.facing = 1;
+  silver.guardUntilFrame = 999;
+  sim.setInput("p1", { ...idleInput(1), guard: true });
+
+  sim.startAttack(saladin, EQUIPMENT_REGISTRY.saladin_twin_blades.definition.skill);
+  for (let i = 0; i < 40; i++) {
+    sim.setInput("p1", { ...idleInput(i + 2), guard: true });
+    sim.tick();
+  }
+
+  assert.equal(saladin.attackName, "Slash");
+  assert.equal(silver.hp, 82);
+  assert.equal(sim.drainEvents().filter((event) => event.kind === "blocked").length, 0);
 });
 
 test("防具の被弾フックが攻撃側をノックバックする", () => {

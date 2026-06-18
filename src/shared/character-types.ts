@@ -27,6 +27,7 @@ export interface AttackSpec {
   guardPierce: boolean;
   movement?: number;
   invulnerable?: boolean;
+  hitCount?: number;
 }
 
 export interface ScriptCharacterVisualProfile {
