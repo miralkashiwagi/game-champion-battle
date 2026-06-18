@@ -5,7 +5,7 @@ export const COMMON_BAREHAND_COMBO: AttackSpec[] = [1, 2, 3].map((step) => ({
   motionId: `barehand_${step}`,
   name: `Barehand ${step}`,
   damage: 4,
-  range: 58,
+  range: 87,
   startupFrames: 10,
   activeFrames: 6,
   recoveryFrames: 12,
