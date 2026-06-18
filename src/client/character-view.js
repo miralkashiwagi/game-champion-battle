@@ -150,10 +150,6 @@ export class ProceduralCharacterView {
     );
     this.buildCollisionVisuals();
 
-    const shadow = mesh(new THREE.CircleGeometry(.72, 24), new THREE.MeshBasicMaterial({ color: 0x05080b, transparent: true, opacity: .32, depthWrite: false }));
-    shadow.rotation.x = -Math.PI / 2;
-    shadow.position.y = .015;
-    this.root.add(shadow);
   }
 
   buildCollisionVisuals() {
