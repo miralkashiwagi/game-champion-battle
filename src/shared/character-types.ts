@@ -90,7 +90,6 @@ export interface ScriptMotionPhase {
   impact: number;
   followThrough: number;
   recover: number;
-  elapsedFrames: number;
   progress: number;
 }
 

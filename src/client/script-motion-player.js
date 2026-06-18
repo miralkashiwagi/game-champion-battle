@@ -415,10 +415,10 @@ export function getAttackPhase(snapshot, spec) {
   const impact = elapsed < startup || elapsed >= startup + active ? 0 : pulse(activeElapsed / active, .12, .58);
   const followThrough = elapsed < startup ? 0 : elapsed < startup + active ? smooth(activeElapsed / active) : 1 - smooth((elapsed - startup - active) / recovery);
   const recover = elapsed < startup + active ? 0 : smooth((elapsed - startup - active) / recovery);
-  if (elapsed < startup) return { pose: smooth(elapsed / startup), strike: 0, windup, impact, followThrough, recover, elapsedFrames: elapsed, progress };
-  if (elapsed < startup + active) return { pose: 1, strike, windup, impact, followThrough, recover, elapsedFrames: elapsed, progress };
+  if (elapsed < startup) return { pose: smooth(elapsed / startup), strike: 0, windup, impact, followThrough, recover, progress };
+  if (elapsed < startup + active) return { pose: 1, strike, windup, impact, followThrough, recover, progress };
   const release = 1 - smooth((elapsed - startup - active) / recovery);
-  return { pose: release, strike: release, windup, impact, followThrough, recover, elapsedFrames: elapsed, progress };
+  return { pose: release, strike: release, windup, impact, followThrough, recover, progress };
 }
 
 function applyPunch(bones, id, phase) {

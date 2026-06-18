@@ -131,7 +131,7 @@ test("Syalはdefinitionで指定された装備を生成する", () => {
   const sim = new MatchSimulation();
   sim.addPlayer("p1", "syal-player", 1000, "syal");
   const syal = sim.players.get("p1");
-  const expected = ["syal_cloak", "sample_helmet", "sample_armor", "syal_twin_blades"];
+  const expected = ["syal_cloak", "sample_helmet", "syal_armor", "syal_twin_blades"];
   for (const item of Object.values(syal.equipment)) {
     assert.ok(expected.includes(item.equipmentId));
     assert.match(item.id, new RegExp(`_${item.equipmentId}_`));

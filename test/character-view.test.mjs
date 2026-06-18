@@ -8,7 +8,7 @@ import { createShowcaseEquipment, faceShowcaseCamera } from "../src/client/scene
 const equipmentSets = {
   silver_knight: { cloak: "silver_knight_cloak", head: "silver_knight_helmet", armor: "silver_knight_armor", weapon: "silver_knight_sword" },
   saladin: { cloak: "saladin_cloak", head: "saladin_headgear", armor: "saladin_armor", weapon: "saladin_twin_blades" },
-  syal: { cloak: "syal_cloak", head: "sample_helmet", armor: "sample_armor", weapon: "syal_twin_blades" }
+  syal: { cloak: "syal_cloak", head: "sample_helmet", armor: "syal_armor", weapon: "syal_twin_blades" }
 };
 const fullEquipment = (characterId) => Object.fromEntries(
   Object.entries(equipmentSets[characterId]).map(([slot, equipmentId]) => [slot, { id: `${equipmentId}-item`, equipmentId }])
@@ -125,7 +125,6 @@ test("攻撃フェーズは互換値と拡張値を返す", () => {
   assert.equal(windup.impact, 0);
   assert.equal(windup.recover, 0);
   assert.ok(windup.progress > 0 && windup.progress < 1);
-  assert.equal(windup.elapsedFrames, 5);
 
   const active = getAttackPhase({ actionStartedFrame: 0, snapshotFrame: 13 }, spec);
   assert.equal(active.pose, 1);
