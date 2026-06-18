@@ -3,7 +3,7 @@ import { test } from "node:test";
 import * as THREE from "three";
 import { MODEL_CONTRACT, ProceduralCharacterView } from "../src/client/character-view.js";
 import { getAttackPhase } from "../src/client/script-motion-player.js";
-import { applyBattleCharacterRenderScale, BATTLE_CAMERA_TARGET_Y, BATTLE_CHARACTER_RENDER_SCALE, createShowcaseEquipment, faceShowcaseCamera } from "../src/client/scene.js";
+import { applyBattleCharacterRenderScale, BATTLE_CAMERA_TARGET_Y, BATTLE_CHARACTER_RENDER_SCALE, ChampionScene, createShowcaseEquipment, faceShowcaseCamera } from "../src/client/scene.js";
 
 const equipmentSets = {
   silver_knight: { cloak: "silver_knight_cloak", head: "silver_knight_helmet", armor: "silver_knight_armor", weapon: "silver_knight_sword" },
@@ -125,6 +125,29 @@ test("戦闘中のキャラクター描画はgameRoot側で全体拡大する", 
   assert.equal(view.root.scale.x, 2);
   assert.equal(view.hurtboxView.scale.x, 1);
   view.dispose();
+});
+
+test("ローカルプレイヤーの移動描画だけ短時間予測する", () => {
+  const scene = Object.create(ChampionScene.prototype);
+  scene.localSide = "p1";
+  scene.snapshotReceivedAt = performance.now() - 100;
+  scene.localInputProvider = () => ({ left: false, right: true, down: false });
+  const player = {
+    side: "p1",
+    characterId: "silver_knight",
+    position: { x: 260, y: 430 },
+    velocity: { x: 4.1, y: 0 },
+    state: "Move",
+    activeActionId: null
+  };
+
+  assert.ok(scene.predictedLocalPlayerX(player) > player.position.x);
+
+  const airborne = { ...player, state: "Jump", velocity: { x: -4.1, y: -5 } };
+  assert.ok(scene.predictedLocalPlayerX(airborne) < airborne.position.x);
+
+  const attacking = { ...player, state: "AttackStartup", activeActionId: "silver_slash" };
+  assert.equal(scene.predictedLocalPlayerX(attacking), attacking.position.x);
 });
 
 test("攻撃フェーズは互換値と拡張値を返す", () => {

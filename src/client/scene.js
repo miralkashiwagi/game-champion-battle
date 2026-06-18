@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import { CHARACTER_IDS, CHARACTER_REGISTRY, DEFAULT_CHARACTER_ID } from "../characters/registry.ts";
-import { BATTLE_COLLISION_SCALE } from "../shared/constants.ts";
+import { BATTLE_COLLISION_SCALE, DASH_SPEED, MOVE_SPEED, STAGE_WIDTH, TICK_MS } from "../shared/constants.ts";
 import { createFieldItemView, ProceduralCharacterView } from "./character-view.js";
 
 const STAGE_CENTER = 640;
@@ -8,6 +8,7 @@ const WORLD_SCALE = 78;
 const GROUND_Y = 430;
 export const BATTLE_CHARACTER_RENDER_SCALE = BATTLE_COLLISION_SCALE;
 export const BATTLE_CAMERA_TARGET_Y = 1.6;
+const LOCAL_PREDICTION_MAX_MS = 180;
 
 const CAMERA_POSES = {
   title: { position: [0, 4.8, 10.8], target: [0, 1.4, 0] },
@@ -28,6 +29,9 @@ export class ChampionScene {
     this.mode = "title";
     this.selectedCharacterId = DEFAULT_CHARACTER_ID;
     this.snapshot = null;
+    this.localSide = null;
+    this.snapshotReceivedAt = 0;
+    this.localInputProvider = null;
     this.showcaseViews = new Map();
     this.battleViews = new Map();
     this.itemViews = new Map();
@@ -207,6 +211,10 @@ export class ChampionScene {
     return this.collisionDebug;
   }
 
+  setLocalInputProvider(provider) {
+    this.localInputProvider = provider;
+  }
+
   setMode(mode, selectedCharacterId = this.selectedCharacterId) {
     this.mode = mode;
     this.selectedCharacterId = selectedCharacterId;
@@ -248,6 +256,8 @@ export class ChampionScene {
 
   setSnapshot(snapshot, localSide) {
     this.snapshot = snapshot;
+    this.localSide = localSide;
+    this.snapshotReceivedAt = performance.now();
     if (!snapshot || this.mode !== "battle") return;
     for (const player of snapshot.players) {
       let view = this.battleViews.get(player.side);
@@ -260,7 +270,7 @@ export class ChampionScene {
       }
       view.root.visible = true;
       applyBattleCharacterRenderScale(view.root);
-      view.root.position.x = worldX(player.position.x);
+      view.root.position.x = this.renderXForPlayer(player);
       view.root.position.z = player.side === "p1" ? .15 : -.15;
     }
     this.detectPickups(snapshot);
@@ -353,7 +363,10 @@ export class ChampionScene {
       for (const player of this.snapshot.players) {
         const view = this.battleViews.get(player.side);
         if (!view) continue;
-        view.root.position.x = THREE.MathUtils.lerp(view.root.position.x, worldX(player.position.x), Math.min(1, delta * 18));
+        const targetX = this.renderXForPlayer(player);
+        view.root.position.x = player.side === this.localSide
+          ? targetX
+          : THREE.MathUtils.lerp(view.root.position.x, targetX, Math.min(1, delta * 18));
         view.update({ ...player, snapshotFrame: this.snapshot.frame, worldY: Math.max(0, (GROUND_Y - player.position.y) / WORLD_SCALE) }, delta, this.elapsed);
       }
       this.updateFieldItems(delta);
@@ -406,6 +419,26 @@ export class ChampionScene {
       view?.setEquipment(player.equipment, this.hiddenPickupItems);
     }
   }
+
+  renderXForPlayer(player) {
+    let x = player.position.x;
+    if (player.side === this.localSide) {
+      x = this.predictedLocalPlayerX(player);
+    }
+    return worldX(x);
+  }
+
+  predictedLocalPlayerX(player) {
+    if (!this.snapshotReceivedAt || !canPredictLocalMovement(player)) return player.position.x;
+    const input = this.localInputProvider?.();
+    const inputAxis = input ? Number(input.right) - Number(input.left) : Math.sign(player.velocity?.x || 0);
+    const velocityX = player.state === "Jump" ? (player.velocity?.x || 0) : inputAxis * (input?.down ? DASH_SPEED : MOVE_SPEED);
+    if (!velocityX) return player.position.x;
+    const elapsedMs = Math.min(LOCAL_PREDICTION_MAX_MS, Math.max(0, performance.now() - this.snapshotReceivedAt));
+    const predicted = player.position.x + velocityX * (elapsedMs / TICK_MS);
+    const halfWidth = CHARACTER_REGISTRY[player.characterId].definition.collision.halfWidth * BATTLE_COLLISION_SCALE;
+    return THREE.MathUtils.clamp(predicted, halfWidth, STAGE_WIDTH - halfWidth);
+  }
 }
 
 export function createShowcaseEquipment(characterId) {
@@ -426,6 +459,10 @@ export function applyBattleCharacterRenderScale(root) {
 
 function worldX(x) {
   return (x - STAGE_CENTER) / WORLD_SCALE;
+}
+
+function canPredictLocalMovement(player) {
+  return ["Idle", "Move", "Dash", "Jump"].includes(player.state) && !player.activeActionId;
 }
 
 function hashId(value) {

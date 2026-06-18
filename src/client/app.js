@@ -23,6 +23,9 @@ const reasonLabels = {
   disconnect: "接続終了"
 };
 
+const INPUT_RESEND_MS = 50;
+const BATTLE_HUD_RENDER_MS = 100;
+
 const state = {
   screen: "title",
   playerId: localStorage.getItem("cb.playerId") || crypto.randomUUID(),
@@ -42,7 +45,8 @@ const state = {
   snapshot: null,
   localSide: null,
   keys: new Set(),
-  frame: 0
+  frame: 0,
+  lastBattleHudRenderAt: 0
 };
 
 localStorage.setItem("cb.playerId", state.playerId);
@@ -52,6 +56,7 @@ const canvas = document.querySelector("#game");
 const battleHud = document.querySelector("#battleHud");
 const fallback = document.querySelector("#webglFallback");
 const scene = new ChampionScene(canvas, () => { fallback.hidden = false; });
+scene.setLocalInputProvider(currentInputButtons);
 
 const keyMap = {
   KeyA: "left",
@@ -89,6 +94,7 @@ window.addEventListener("keyup", (event) => {
 
 function setScreen(next) {
   state.screen = next;
+  state.lastBattleHudRenderAt = 0;
   battleHud.hidden = next !== "battle";
   scene.setMode(next, next === "select" ? state.pendingCharacterId : state.characterId);
   if (next === "battle") scene.setSnapshot(state.snapshot, state.localSide);
@@ -427,7 +433,7 @@ function handleServerMessage(message, ws) {
     }
     if (state.screen !== "battle") setScreen("battle");
     scene.setSnapshot(message, state.localSide);
-    renderBattleHud();
+    renderBattleHudThrottled();
   }
   if (message.phase === "finished") {
     applyCpDelta(message.result, message.matchId, message.roundId);
@@ -454,6 +460,12 @@ function applyCpDelta(result, matchId, roundId) {
 function currentInput() {
   return {
     frame: state.frame++,
+    ...currentInputButtons()
+  };
+}
+
+function currentInputButtons() {
+  return {
     left: state.keys.has("KeyA"),
     right: state.keys.has("KeyD"),
     up: state.keys.has("KeyW"),
@@ -476,12 +488,19 @@ function sendCurrentInput() {
   }
 }
 
-setInterval(sendCurrentInput, 1000);
+setInterval(sendCurrentInput, INPUT_RESEND_MS);
 setInterval(() => {
   if (state.screen === "result" && state.rematchAvailable) updateRematchStatus();
 }, 250);
 
+function renderBattleHudThrottled() {
+  const now = performance.now();
+  if (now - state.lastBattleHudRenderAt < BATTLE_HUD_RENDER_MS) return;
+  renderBattleHud();
+}
+
 function renderBattleHud() {
+  state.lastBattleHudRenderAt = performance.now();
   const snapshot = state.snapshot;
   if (!snapshot?.players?.length) {
     battleHud.innerHTML = "";
