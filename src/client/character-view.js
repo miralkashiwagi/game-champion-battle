@@ -21,9 +21,11 @@ const SHARED_FALLBACK_PALETTE = {
 };
 
 const SHARED_FALLBACK_MODEL = {
-  proportions: { shoulderWidth: 1, torsoHeight: 1, torsoDepth: 1, legLength: 1, headScale: 1, limbWidth: 1 },
+  proportions: { shoulderWidth: 1, torsoHeight: 1.04, torsoDepth: 1, legLength: 1.1, headScale: 1, limbWidth: 1 },
   upperArmMaterial: "cloth"
 };
+const MODEL_DISPLAY_SCALE = 1.12;
+const SCRIPT_MODEL_BASE_SCALE = .895;
 
 export const MODEL_CONTRACT = Object.freeze({
   renderer: "script",
@@ -76,7 +78,11 @@ export class ProceduralCharacterView {
     chest.position.y = .24 * shape.torsoHeight;
     hips.add(spine);
     spine.add(chest);
-    this.visualRoot.add(hips);
+    this.modelRoot = new THREE.Group();
+    this.modelRoot.name = `${this.characterId}-script-model-root`;
+    this.modelRoot.scale.setScalar(SCRIPT_MODEL_BASE_SCALE);
+    this.visualRoot.add(this.modelRoot);
+    this.modelRoot.add(hips);
     const torso = mesh(new THREE.CylinderGeometry(.42 * shape.shoulderWidth, .52 * shape.shoulderWidth, .82 * shape.torsoHeight, 6), cloth);
     torso.scale.z = .7 * shape.torsoDepth;
     chest.add(torso);
@@ -133,7 +139,7 @@ export class ProceduralCharacterView {
       leftFoot: leftLeg.foot,
       rightFoot: rightLeg.foot
     }, sockets);
-    this.visualRoot.scale.setScalar(this.profile.scale);
+    this.visualRoot.scale.setScalar(getDisplayScale(this.profile));
     this.visualRoot.position.y = this.profile.groundOffset;
     this.motionPlayer = new ScriptMotionPlayer(
       this.rig,
@@ -309,7 +315,7 @@ export class ProceduralCharacterView {
     const fallbackRoot = this.visualRoot;
     const visualRoot = new THREE.Group();
     visualRoot.name = `${this.characterId}-vrm-visual-root`;
-    visualRoot.scale.setScalar(this.profile.scale);
+    visualRoot.scale.setScalar(getDisplayScale(this.profile));
     visualRoot.position.y = this.profile.groundOffset;
     visualRoot.add(vrm.scene);
     this.root.add(visualRoot);
@@ -396,6 +402,10 @@ function resolveMotionController(motionId) {
     if (attacks.some((attack) => attack.motionId === motionId)) return registration.motionController;
   }
   return null;
+}
+
+function getDisplayScale(profile) {
+  return profile.scale * MODEL_DISPLAY_SCALE;
 }
 
 function createVrmRig(vrm) {

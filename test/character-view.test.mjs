@@ -32,7 +32,7 @@ test("Silver Knightは本体VRMと共有スクリプトフォールバックを�
   const view = new ProceduralCharacterView("silver_knight");
   assert.equal(view.profile.renderer, "vrm");
   assert.equal(view.profile.url, "/characters/silver_knight/silver_knight.vrm");
-  assert.equal(view.profile.scale, 1.5);
+  assert.equal(view.profile.scale, 1);
   assert.equal(view.profile.groundOffset, 0);
   assert.equal(view.profile.fallback, "shared-script");
   assert.equal(view.root.userData.modelType, "script");
@@ -185,7 +185,7 @@ test("共通Humanoid走行は肩、肘、膝、足首を連動させる", () => 
   assert.notEqual(view.rig.getBone("leftLowerArm").rotation.z, 0);
   assert.notEqual(view.rig.getBone("leftLowerLeg").rotation.x, 0);
   assert.notEqual(view.rig.getBone("leftFoot").rotation.x, 0);
-  assert.equal(view.profile.scale, 1.5);
+  assert.equal(view.profile.scale, 1);
   view.dispose();
 });
 
