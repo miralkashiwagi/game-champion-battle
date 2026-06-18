@@ -186,6 +186,7 @@ export class MatchSimulation {
           player.guardUntilFrame = this.frame + 180;
         }
         player.state = this.frame <= player.guardUntilFrame ? "Guard" : "Idle";
+        if (player.state === "Guard") player.velocity.x = 0;
       } else if (player.state === "Guard") {
         player.state = "Idle";
       }
