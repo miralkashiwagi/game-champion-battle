@@ -1,11 +1,12 @@
 import * as THREE from "three";
 import { CHARACTER_IDS, CHARACTER_REGISTRY, DEFAULT_CHARACTER_ID } from "../characters/registry.ts";
+import { BATTLE_COLLISION_SCALE } from "../shared/constants.ts";
 import { createFieldItemView, ProceduralCharacterView } from "./character-view.js";
 
 const STAGE_CENTER = 640;
 const WORLD_SCALE = 78;
 const GROUND_Y = 430;
-export const BATTLE_CHARACTER_RENDER_SCALE = 2;
+export const BATTLE_CHARACTER_RENDER_SCALE = BATTLE_COLLISION_SCALE;
 export const BATTLE_CAMERA_TARGET_Y = 1.6;
 
 const CAMERA_POSES = {

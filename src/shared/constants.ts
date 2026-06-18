@@ -8,6 +8,7 @@ export const INITIAL_HP = 100;
 export const STAGE_WIDTH = 1280;
 export const STAGE_HEIGHT = 540;
 export const GROUND_Y = 430;
+export const BATTLE_COLLISION_SCALE = 2;
 export const PLAYER_WIDTH = 44;
 export const PLAYER_HEIGHT = 92;
 export const MOVE_SPEED = 4.1;

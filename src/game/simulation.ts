@@ -5,6 +5,7 @@ import {
   GRAVITY,
   GROUND_Y,
   AIR_KNOCKBACK_SPEED,
+  BATTLE_COLLISION_SCALE,
   INITIAL_HP,
   JUMP_SPEED,
   MATCH_TIME_MS,
@@ -233,7 +234,7 @@ export class MatchSimulation {
     }
 
     player.velocity.y += GRAVITY;
-    const halfWidth = CHARACTER_REGISTRY[player.characterId].definition.collision.halfWidth;
+    const halfWidth = collisionHalfWidth(player.characterId);
     player.position.x = clamp(player.position.x + player.velocity.x, halfWidth, STAGE_WIDTH - halfWidth);
     player.position.y += player.velocity.y;
     if (player.position.y >= GROUND_Y) {
@@ -252,7 +253,7 @@ export class MatchSimulation {
       const total = player.activeAttack.spec.startupFrames + player.activeAttack.spec.activeFrames + player.activeAttack.spec.recoveryFrames;
       const move = player.activeAttack.spec.movement ?? 0;
       if (move && player.attackTimer <= player.activeAttack.spec.startupFrames + player.activeAttack.spec.activeFrames) {
-        const halfWidth = CHARACTER_REGISTRY[player.characterId].definition.collision.halfWidth;
+        const halfWidth = collisionHalfWidth(player.characterId);
         player.position.x = clamp(player.position.x + (move / Math.max(1, player.activeAttack.spec.activeFrames + player.activeAttack.spec.startupFrames)) * player.facing, halfWidth, STAGE_WIDTH - halfWidth);
       }
       if (player.attackTimer >= total) {
@@ -292,9 +293,9 @@ export class MatchSimulation {
     if (activeElapsed < nextHitFrame) return;
     if (defender.invulnerableUntilFrame >= this.frame || defender.state === "Dead") return;
     const defenderCollision = CHARACTER_REGISTRY[defender.characterId].definition.collision;
-    const horizontalReach = active.spec.range + defenderCollision.halfWidth;
+    const horizontalReach = attackRange(active.spec) + collisionHalfWidth(defender.characterId);
     if (Math.abs(attacker.position.x - defender.position.x) > horizontalReach) return;
-    if (Math.abs(attacker.position.y - defender.position.y) > defenderCollision.height) return;
+    if (Math.abs(attacker.position.y - defender.position.y) > defenderCollision.height * BATTLE_COLLISION_SCALE) return;
 
     const blocked = this.isBlocking(defender, attacker) && !active.spec.guardPierce;
     active.hitsDone += 1;
@@ -524,4 +525,12 @@ export class MatchSimulation {
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
+}
+
+function collisionHalfWidth(characterId: CharacterId): number {
+  return CHARACTER_REGISTRY[characterId].definition.collision.halfWidth * BATTLE_COLLISION_SCALE;
+}
+
+function attackRange(spec: AttackSpec): number {
+  return spec.range * BATTLE_COLLISION_SCALE;
 }
