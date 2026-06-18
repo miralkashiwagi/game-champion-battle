@@ -296,6 +296,52 @@ test("スクリプトモデルの攻撃も肘と膝を使用する", () => {
   view.dispose();
 });
 
+test("素手攻撃はVRM Humanoid向けに肩、胸、肘、脚を使う", () => {
+  const view = new ProceduralCharacterView("silver_knight");
+  for (const [motionId, shoulderName, lowerArmName, lowerLegName, lowerArmSign] of [
+    ["barehand_1", "leftShoulder", "leftLowerArm", "leftLowerLeg", -1],
+    ["barehand_2", "rightShoulder", "rightLowerArm", "rightLowerLeg", 1],
+    ["barehand_3", "leftShoulder", "leftLowerArm", "leftLowerLeg", -1]
+  ]) {
+    view.update({
+      state: "AttackActive",
+      facing: 1,
+      worldY: 0,
+      activeActionId: motionId,
+      actionStartedFrame: 0,
+      snapshotFrame: 13
+    }, 1 / 60, 0);
+    assert.notEqual(view.rig.getBone(shoulderName).rotation.z, 0);
+    assert.notEqual(view.rig.getBone(lowerArmName).rotation.z, 0);
+    assert.equal(Math.sign(view.rig.getBone(lowerArmName).rotation.z), lowerArmSign);
+    assert.notEqual(view.rig.getBone("chest").rotation.y, 0);
+    assert.notEqual(view.rig.getBone(lowerLegName).rotation.x, 0);
+  }
+  view.dispose();
+});
+
+test("素手攻撃は予備動作から腕を前側へ構える", () => {
+  const view = new ProceduralCharacterView("silver_knight");
+  for (const [motionId, armName, shoulderName] of [
+    ["barehand_1", "leftUpperArm", "leftShoulder"],
+    ["barehand_2", "rightUpperArm", "rightShoulder"],
+    ["barehand_3", "leftUpperArm", "leftShoulder"]
+  ]) {
+    view.update({
+      state: "AttackStartup",
+      facing: 1,
+      worldY: 0,
+      activeActionId: motionId,
+      actionStartedFrame: 0,
+      snapshotFrame: 5
+    }, 1 / 60, 0);
+    assert.ok(view.rig.getBone(armName).rotation.x < -.35);
+    assert.notEqual(view.rig.getBone(shoulderName).rotation.y, 0);
+    assert.notEqual(view.rig.getBone(shoulderName).rotation.z, 0);
+  }
+  view.dispose();
+});
+
 test("双剣モーションは装備ごとに異なる骨回転を持つ", () => {
   const saladin = new ProceduralCharacterView("saladin");
   const syal = new ProceduralCharacterView("syal");

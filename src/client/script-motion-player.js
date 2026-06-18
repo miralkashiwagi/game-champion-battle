@@ -308,7 +308,7 @@ export class ScriptMotionPlayer {
     const phase = getAttackPhase(snapshot, this.attackSpecs.get(id));
     const rigBones = getRigBones(this.rig);
     if (id.startsWith("barehand_")) {
-      applyPunch(rigBones, id, phase);
+      applyPunch(rigBones, id, phase, this.visualRoot);
       this.applyAttackOverlay(phase);
       return;
     }
@@ -421,12 +421,133 @@ export function getAttackPhase(snapshot, spec) {
   return { pose: release, strike: release, windup, impact, followThrough, recover, progress };
 }
 
-function applyPunch(bones, id, phase) {
-  const left = id.endsWith("_2");
-  const arm = left ? bones.leftArm : bones.rightArm;
-  arm.rotation.x = -1.3 * phase.strike;
-  arm.rotation.z = (left ? .35 : -.35) * phase.pose;
-  bones.chest.rotation.y = (left ? -.22 : .22) * phase.strike;
+function applyPunch(bones, id, phase, visualRoot) {
+  const step = Number(id.match(/_(\d)$/)?.[1] || 1);
+  const left = step !== 2;
+  const cross = step === 2;
+  const hook = step === 3;
+  const side = left ? -1 : 1;
+  const leadShoulder = left ? bones.leftShoulder : bones.rightShoulder;
+  const rearShoulder = left ? bones.rightShoulder : bones.leftShoulder;
+  const leadArm = left ? bones.leftArm : bones.rightArm;
+  const rearArm = left ? bones.rightArm : bones.leftArm;
+  const leadLowerArm = left ? bones.leftLowerArm : bones.rightLowerArm;
+  const rearLowerArm = left ? bones.rightLowerArm : bones.leftLowerArm;
+  const leadLeg = left ? bones.leftLeg : bones.rightLeg;
+  const rearLeg = left ? bones.rightLeg : bones.leftLeg;
+  const leadLowerLeg = left ? bones.leftLowerLeg : bones.rightLowerLeg;
+  const rearLowerLeg = left ? bones.rightLowerLeg : bones.leftLowerLeg;
+  const leadFoot = left ? bones.leftFoot : bones.rightFoot;
+  const rearFoot = left ? bones.rightFoot : bones.leftFoot;
+  const windup = phase.windup;
+  const strike = phase.strike;
+  const impact = phase.impact;
+  const follow = phase.followThrough;
+  const cover = 1 - phase.recover;
+  const leadBend = left ? -1 : 1;
+  const rearBend = -leadBend;
+  const leadGuardBend = .72 * (1 - strike) + .14 * strike;
+  const rearGuardBend = .76 * cover;
+
+  if (hook) {
+    visualRoot.position.z = .05 * windup + .16 * impact;
+    bones.hips.position.y -= .035 * windup + .02 * impact;
+    bones.hips.rotation.y = .2 * windup - .46 * strike;
+    bones.hips.rotation.z = -.08 * impact;
+    bones.chest.rotation.x = -.03 * windup;
+    bones.chest.rotation.y = .32 * windup - .72 * strike;
+    bones.chest.rotation.z = -.18 * impact;
+    bones.head.rotation.y = -bones.chest.rotation.y * .24;
+    bones.head.rotation.z = .08 * impact;
+
+    leadShoulder.rotation.y = -.3 * windup - .28 * strike;
+    leadShoulder.rotation.z = -.32 - .18 * windup - .34 * impact;
+    leadShoulder.rotation.x = .08 + .08 * impact;
+    leadArm.rotation.x = -.9 * windup - .58 * strike;
+    leadArm.rotation.y = -.34 * strike;
+    leadArm.rotation.z = -.68 * windup - .92 * cover;
+    leadLowerArm.rotation.x = .1 * impact;
+    leadLowerArm.rotation.z = leadBend * (.88 + .08 * windup);
+    bones.leftHand.rotation.y = -.18 * strike;
+    bones.leftHand.rotation.z = -.28 * impact;
+
+    rearShoulder.rotation.y = .12 * cover;
+    rearShoulder.rotation.z = .24 + .16 * windup;
+    rearArm.rotation.x = -.82 * cover - .12 * windup;
+    rearArm.rotation.z = .8 * cover;
+    rearLowerArm.rotation.z = rearBend * rearGuardBend;
+
+    leadLeg.rotation.x = -.18 * strike;
+    rearLeg.rotation.x = .22 * windup + .08 * impact;
+    leadLowerLeg.rotation.x = .22 * impact;
+    rearLowerLeg.rotation.x = .2 * windup;
+    leadFoot.rotation.x = -.16 * impact;
+    rearFoot.rotation.x = -.08 * windup;
+    return;
+  }
+
+  if (cross) {
+    visualRoot.position.z = .06 * windup + .22 * strike + .04 * impact;
+    bones.hips.position.y -= .03 * windup + .02 * impact;
+    bones.hips.rotation.y = .24 * windup - .54 * strike;
+    bones.chest.rotation.x = -.04 * windup - .02 * impact;
+    bones.chest.rotation.y = .34 * windup - .78 * strike;
+    bones.chest.rotation.z = .08 * impact;
+    bones.head.rotation.y = -bones.chest.rotation.y * .22;
+
+    leadShoulder.rotation.y = -.34 * windup - .34 * strike;
+    leadShoulder.rotation.z = .22 + .16 * windup + .3 * impact;
+    leadShoulder.rotation.x = .08 * impact;
+    leadArm.rotation.x = -.96 * windup - 1.02 * strike;
+    leadArm.rotation.y = .08 * strike;
+    leadArm.rotation.z = .48 * windup - .34 * strike;
+    leadLowerArm.rotation.z = leadBend * leadGuardBend;
+    bones.rightHand.rotation.z = .26 * impact;
+
+    rearShoulder.rotation.y = -.14 * cover;
+    rearShoulder.rotation.z = -.22 - .16 * cover;
+    rearArm.rotation.x = -.82 * cover;
+    rearArm.rotation.z = -.84 * cover;
+    rearLowerArm.rotation.z = rearBend * rearGuardBend;
+
+    leadLeg.rotation.x = -.16 * strike - .06 * impact;
+    rearLeg.rotation.x = .28 * windup + .12 * strike;
+    leadLowerLeg.rotation.x = .2 * strike;
+    rearLowerLeg.rotation.x = .22 * windup + .12 * impact;
+    leadFoot.rotation.x = -.14 * impact;
+    rearFoot.rotation.x = -.16 * strike;
+    return;
+  }
+
+  visualRoot.position.z = .04 * windup + .14 * strike + .02 * impact;
+  bones.hips.position.y -= .018 * windup;
+  bones.hips.rotation.y = -.08 * windup + .18 * strike;
+  bones.chest.rotation.x = -.02 * windup;
+  bones.chest.rotation.y = -.14 * windup + .32 * strike;
+  bones.chest.rotation.z = -.05 * impact;
+  bones.head.rotation.y = -bones.chest.rotation.y * .25;
+
+  leadShoulder.rotation.y = -.28 * windup - .2 * strike;
+  leadShoulder.rotation.z = -.22 - .16 * windup - .28 * impact;
+  leadShoulder.rotation.x = .06 * impact;
+  leadArm.rotation.x = -.92 * windup - .9 * strike;
+  leadArm.rotation.y = -.04 * strike;
+  leadArm.rotation.z = -.54 * windup - .28 * strike;
+  leadLowerArm.rotation.z = leadBend * leadGuardBend;
+  bones.leftHand.rotation.z = -.2 * impact;
+
+  rearShoulder.rotation.y = .12 * cover;
+  rearShoulder.rotation.z = .24 + .14 * cover;
+  rearArm.rotation.x = -.82 * cover;
+  rearArm.rotation.z = .78 * cover;
+  rearLowerArm.rotation.z = rearBend * rearGuardBend;
+
+  leadLeg.rotation.x = -.1 * strike;
+  rearLeg.rotation.x = .16 * windup + .06 * impact;
+  leadLowerLeg.rotation.x = .14 * impact;
+  rearLowerLeg.rotation.x = .16 * windup;
+  leadFoot.rotation.x = -.1 * impact;
+  rearFoot.rotation.x = -.08 * windup;
 }
 
 function applyGuardCounter(bones, phase, visualRoot) {
