@@ -159,18 +159,42 @@ function renderScreen() {
   }
 
   if (state.screen === "select") {
+    const selectedCharacter = characters[state.pendingCharacterId];
     screen.className = "screen-layer content-screen";
     screen.innerHTML = `
       ${topline("キャラクター選択", `CP : ${state.cp}`)}
       <div class="content-body select-layout">
-        ${Object.entries(characters).map(([id, character]) => `
-          <article class="panel character-card ${state.pendingCharacterId === id ? "selected" : ""}" data-action="preview" data-id="${id}">
-            ${state.pendingCharacterId === id ? '<span class="selected-label">SELECTED</span>' : ""}
-            <div class="card-space"></div>
-            <p class="eyebrow">${character.type}</p>
-            <h2>${character.name}</h2>
-            <p class="muted">${character.detail}</p>
-          </article>`).join("")}
+        <section class="panel select-roster" aria-label="キャラクター一覧">
+          <div class="select-roster-head">
+            <div>
+              <p class="eyebrow">Roster</p>
+              <h3>登録キャラクター</h3>
+            </div>
+            <span class="roster-count">${Object.keys(characters).length}</span>
+          </div>
+          <div class="character-list">
+            ${Object.entries(characters).map(([id, character], index) => `
+              <button class="character-option ${state.pendingCharacterId === id ? "selected" : ""}" data-action="preview" data-id="${id}" type="button">
+                <span class="option-index">${String(index + 1).padStart(2, "0")}</span>
+                <span class="option-copy">
+                  <strong>${character.name}</strong>
+                  <span>${character.type}</span>
+                </span>
+                <span class="option-state">${state.pendingCharacterId === id ? "選択中" : "確認"}</span>
+              </button>`).join("")}
+          </div>
+        </section>
+        <section class="panel character-preview">
+          <div class="preview-copy">
+            <p class="eyebrow">${selectedCharacter.type}</p>
+            <h2>${selectedCharacter.name}</h2>
+            <p class="muted">${selectedCharacter.detail}</p>
+            <div class="preview-normal">
+              <span class="small muted">通常攻撃</span>
+              <strong>${selectedCharacter.normal}</strong>
+            </div>
+          </div>
+        </section>
       </div>
       <div class="screen-actions">
         <button class="button ghost" data-action="lobby">戻る</button>
