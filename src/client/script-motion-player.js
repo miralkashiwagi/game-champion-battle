@@ -8,7 +8,7 @@ const DEFAULT_STATE_STYLE = {
   moveSpeed: 8,
   idleBob: .026,
   idleLean: .015,
-  idleArmSpread: .08,
+  idleArmSpread: .68,
   idleLegSpread: .06,
   moveBob: .06,
   moveLean: -.12,
@@ -18,9 +18,12 @@ const DEFAULT_STATE_STYLE = {
   guardLean: .08,
   guardTwist: .04,
   guardLeftArmX: -1.12,
-  guardLeftArmZ: -.4,
+  guardLeftArmZ: -.78,
   guardRightArmX: -.25,
-  guardRightArmZ: -.12
+  guardRightArmZ: .38,
+  transitionBlend: .075,
+  attackSway: .045,
+  equipmentLag: .08
 };
 
 export class ScriptMotionPlayer {
@@ -30,11 +33,14 @@ export class ScriptMotionPlayer {
     this.attackSpecs = attackSpecs;
     this.motionController = motionController;
     this.resolveMotionController = resolveMotionController || (() => motionController);
-    this.stateStyle = { ...DEFAULT_STATE_STYLE };
+    this.stateStyle = { ...DEFAULT_STATE_STYLE, ...(motionController?.stateStyle || {}) };
     this.baseVisualY = visualRoot.position.y;
     this.basePositions = new Map(MOTION_BONES.map((name) => [name, rig.getBone(name).position.clone()]));
     this.time = Math.random() * 10;
     this.pickupRemaining = 0;
+    this.motionKey = null;
+    this.lastPose = null;
+    this.transition = null;
   }
 
   playPickup() {
@@ -44,11 +50,29 @@ export class ScriptMotionPlayer {
   update(snapshot, delta) {
     this.time += delta;
     this.pickupRemaining = Math.max(0, this.pickupRemaining - delta);
-    this.resetPose();
     const state = snapshot?.state || "Idle";
+    const motionId = snapshot?.activeActionId && state.startsWith("Attack")
+      ? `attack:${snapshot.activeActionId}`
+      : `state:${STATE_MOTIONS[state] || "idle"}`;
+    this.beginTransition(motionId);
+    this.resetPose();
     if (snapshot?.activeActionId && state.startsWith("Attack")) this.applyAttack(snapshot);
     else this.applyState(STATE_MOTIONS[state] || "idle", snapshot);
+    this.applyHumanoidArmBalance();
+    this.applyTransition(delta);
     if (this.pickupRemaining > 0) this.applyPickupOverlay();
+    this.lastPose = this.capturePose();
+  }
+
+  beginTransition(motionId) {
+    if (motionId === this.motionKey) return;
+    const duration = Math.max(0, this.stateStyle.transitionBlend ?? DEFAULT_STATE_STYLE.transitionBlend);
+    if (this.lastPose && duration > 0) {
+      this.transition = { from: this.lastPose, elapsed: 0, duration };
+    } else {
+      this.transition = null;
+    }
+    this.motionKey = motionId;
   }
 
   resetPose() {
@@ -74,28 +98,33 @@ export class ScriptMotionPlayer {
       b.rightShoulder.rotation.z = .025;
       b.leftArm.rotation.z = -style.idleArmSpread;
       b.rightArm.rotation.z = style.idleArmSpread;
-      b.leftLowerArm.rotation.z = -.08;
-      b.rightLowerArm.rotation.z = .08;
+      b.leftLowerArm.rotation.z = -.28;
+      b.rightLowerArm.rotation.z = .28;
       b.leftLeg.rotation.z = -style.idleLegSpread;
       b.rightLeg.rotation.z = style.idleLegSpread;
     } else if (motionId === "move") {
       const stride = Math.sin(phase);
       const leftPlant = Math.max(0, -stride);
       const rightPlant = Math.max(0, stride);
+      const planted = Math.max(leftPlant, rightPlant);
       const cadence = Math.cos(phase * 2);
       b.hips.position.y += (1 - Math.abs(stride)) * style.moveBob;
       b.hips.position.x += stride * .018;
+      b.hips.position.z += planted * .012;
+      b.spine.position.y -= planted * .01;
       b.hips.rotation.y = stride * style.moveTwist;
       b.hips.rotation.z = stride * .025;
-      b.spine.rotation.x = style.moveLean * .42;
+      b.spine.rotation.x = style.moveLean * .42 - planted * .018;
       b.spine.rotation.y = -stride * style.moveTwist * .62;
-      b.chest.rotation.x = style.moveLean;
+      b.chest.rotation.x = style.moveLean - planted * .025;
       b.chest.rotation.y = -stride * style.moveTwist;
-      b.chest.rotation.z = -stride * .018;
+      b.chest.rotation.z = -stride * .018 + cadence * .008;
       b.head.rotation.x = -style.moveLean * .28 + cadence * .012;
       b.head.rotation.y = stride * style.moveTwist * .35;
       b.leftShoulder.rotation.y = stride * .08;
       b.rightShoulder.rotation.y = stride * .08;
+      b.leftShoulder.rotation.z = -.08 - leftPlant * .08;
+      b.rightShoulder.rotation.z = .08 + rightPlant * .08;
       b.leftLeg.rotation.x = stride * style.moveStride;
       b.rightLeg.rotation.x = -stride * style.moveStride;
       b.leftLowerLeg.rotation.x = leftPlant * 1.05 + rightPlant * .16;
@@ -104,25 +133,29 @@ export class ScriptMotionPlayer {
       b.rightFoot.rotation.x = -rightPlant * .48 + leftPlant * .16;
       b.leftArm.rotation.x = -stride * style.moveArmSwing;
       b.rightArm.rotation.x = stride * style.moveArmSwing;
-      b.leftArm.rotation.z = -.08;
-      b.rightArm.rotation.z = .08;
+      b.leftArm.rotation.z = -.46 - leftPlant * .08;
+      b.rightArm.rotation.z = .46 + rightPlant * .08;
       b.leftLowerArm.rotation.z = -.42 - rightPlant * .32;
       b.rightLowerArm.rotation.z = .42 + leftPlant * .32;
     } else if (motionId === "dash") {
       const stride = Math.sin(phase * 1.35);
       const leftPlant = Math.max(0, -stride);
       const rightPlant = Math.max(0, stride);
+      const planted = Math.max(leftPlant, rightPlant);
       b.hips.position.y += (1 - Math.abs(stride)) * style.moveBob * .65;
-      b.hips.position.z += .04;
-      b.hips.rotation.x = -.18;
+      b.hips.position.z += .04 + planted * .025;
+      b.spine.position.y -= planted * .016;
+      b.hips.rotation.x = -.18 - planted * .035;
       b.hips.rotation.y = stride * style.moveTwist * .72;
-      b.spine.rotation.x = -.2;
+      b.spine.rotation.x = -.2 - planted * .035;
       b.spine.rotation.y = -stride * style.moveTwist * .45;
-      b.chest.rotation.x = -.36;
+      b.chest.rotation.x = -.36 - planted * .04;
       b.chest.rotation.y = -stride * style.moveTwist * .55;
       b.head.rotation.x = .1;
       b.leftShoulder.rotation.y = stride * .1;
       b.rightShoulder.rotation.y = stride * .1;
+      b.leftShoulder.rotation.z = -.1 - leftPlant * .1;
+      b.rightShoulder.rotation.z = .1 + rightPlant * .1;
       b.leftLeg.rotation.x = stride * .92;
       b.rightLeg.rotation.x = -stride * .92;
       b.leftLowerLeg.rotation.x = leftPlant * 1.22 + rightPlant * .2;
@@ -131,8 +164,8 @@ export class ScriptMotionPlayer {
       b.rightFoot.rotation.x = -rightPlant * .56 + leftPlant * .18;
       b.leftArm.rotation.x = -stride * .78 - .18;
       b.rightArm.rotation.x = stride * .78 - .18;
-      b.leftArm.rotation.z = -.12;
-      b.rightArm.rotation.z = .12;
+      b.leftArm.rotation.z = -.52 - leftPlant * .08;
+      b.rightArm.rotation.z = .52 + rightPlant * .08;
       b.leftLowerArm.rotation.z = -.5 - rightPlant * .28;
       b.rightLowerArm.rotation.z = .5 + leftPlant * .28;
     } else if (motionId === "jump") {
@@ -144,12 +177,12 @@ export class ScriptMotionPlayer {
       b.spine.rotation.x = -.08 - rising * .08 + falling * .1;
       b.chest.rotation.x = -.16 - rising * .12 + falling * .16;
       b.head.rotation.x = .08 + rising * .06 - falling * .04;
-      b.leftShoulder.rotation.z = -.08;
-      b.rightShoulder.rotation.z = .08;
+      b.leftShoulder.rotation.z = -.18;
+      b.rightShoulder.rotation.z = .18;
       b.leftArm.rotation.x = -.28 - rising * .18 + falling * .24;
       b.rightArm.rotation.x = .28 + rising * .18 - falling * .24;
-      b.leftArm.rotation.z = -.36;
-      b.rightArm.rotation.z = .36;
+      b.leftArm.rotation.z = -.62;
+      b.rightArm.rotation.z = .62;
       b.leftLowerArm.rotation.z = -.42;
       b.rightLowerArm.rotation.z = .42;
       b.leftLeg.rotation.x = .34 + rising * .26 - falling * .12;
@@ -161,6 +194,10 @@ export class ScriptMotionPlayer {
     } else if (motionId === "guard") {
       b.chest.rotation.x = style.guardLean;
       b.chest.rotation.y = style.guardTwist;
+      b.leftShoulder.rotation.y = -.16;
+      b.rightShoulder.rotation.y = .12;
+      b.leftShoulder.rotation.z = -.2;
+      b.rightShoulder.rotation.z = .14;
       b.leftArm.rotation.x = style.guardLeftArmX;
       b.leftArm.rotation.z = style.guardLeftArmZ;
       b.rightArm.rotation.x = style.guardRightArmX;
@@ -176,12 +213,12 @@ export class ScriptMotionPlayer {
       b.chest.rotation.x = -.34 * recoil;
       b.chest.rotation.z = Math.sin(this.time * 34) * .06;
       b.head.rotation.x = .18;
-      b.leftShoulder.rotation.z = -.12;
-      b.rightShoulder.rotation.z = .12;
+      b.leftShoulder.rotation.z = -.22;
+      b.rightShoulder.rotation.z = .22;
       b.leftArm.rotation.x = .28;
       b.rightArm.rotation.x = -.22;
-      b.leftArm.rotation.z = -.52;
-      b.rightArm.rotation.z = .52;
+      b.leftArm.rotation.z = -.74;
+      b.rightArm.rotation.z = .74;
       b.leftLowerArm.rotation.z = -.48;
       b.rightLowerArm.rotation.z = .48;
       b.leftLeg.rotation.x = -.12;
@@ -199,6 +236,8 @@ export class ScriptMotionPlayer {
       b.rightLeg.rotation.x = -.28;
       b.rightLowerLeg.rotation.x = .72;
       b.rightFoot.rotation.x = -.3;
+      b.leftShoulder.rotation.z = -.2;
+      b.rightShoulder.rotation.z = .2;
       b.leftArm.rotation.x = -.28;
       b.rightArm.rotation.x = -.42;
       b.leftLowerArm.rotation.z = -.62;
@@ -218,12 +257,12 @@ export class ScriptMotionPlayer {
       b.chest.rotation.z = -.14 + flutter * .045;
       b.head.rotation.x = .2 + rising * .1;
       b.head.rotation.z = .08 - flutter * .025;
-      b.leftShoulder.rotation.z = -.16;
-      b.rightShoulder.rotation.z = .16;
+      b.leftShoulder.rotation.z = -.26;
+      b.rightShoulder.rotation.z = .26;
       b.leftArm.rotation.x = .42 + flutter * .12;
       b.rightArm.rotation.x = -.3 - flutter * .1;
-      b.leftArm.rotation.z = -.72;
-      b.rightArm.rotation.z = .68;
+      b.leftArm.rotation.z = -.86;
+      b.rightArm.rotation.z = .82;
       b.leftLowerArm.rotation.z = -.72;
       b.rightLowerArm.rotation.z = .68;
       b.leftLeg.rotation.x = .56 - falling * .2;
@@ -235,8 +274,10 @@ export class ScriptMotionPlayer {
     } else if (motionId === "stunned") {
       b.chest.rotation.z = Math.sin(this.time * 9) * .12;
       b.head.rotation.z = -b.chest.rotation.z * 1.8;
-      b.leftArm.rotation.z = -.5;
-      b.rightArm.rotation.z = .5;
+      b.leftShoulder.rotation.z = -.18;
+      b.rightShoulder.rotation.z = .18;
+      b.leftArm.rotation.z = -.7;
+      b.rightArm.rotation.z = .7;
     } else if (motionId === "down" || motionId === "dead") {
       const dead = motionId === "dead";
       b.hips.position.y -= dead ? .72 : .62;
@@ -247,8 +288,10 @@ export class ScriptMotionPlayer {
       b.head.rotation.z = dead ? -.12 : -.2;
       b.leftArm.rotation.x = dead ? .18 : -.22;
       b.rightArm.rotation.x = dead ? -.16 : .3;
-      b.leftArm.rotation.z = -.38;
-      b.rightArm.rotation.z = .42;
+      b.leftShoulder.rotation.z = -.14;
+      b.rightShoulder.rotation.z = .14;
+      b.leftArm.rotation.z = -.62;
+      b.rightArm.rotation.z = .64;
       b.leftLowerArm.rotation.z = -.62;
       b.rightLowerArm.rotation.z = .58;
       b.leftLeg.rotation.x = .42;
@@ -266,20 +309,77 @@ export class ScriptMotionPlayer {
     const rigBones = getRigBones(this.rig);
     if (id.startsWith("barehand_")) {
       applyPunch(rigBones, id, phase);
+      this.applyAttackOverlay(phase);
       return;
     }
     if (id === "common_guard_counter") {
       applyGuardCounter(rigBones, phase, this.visualRoot);
+      this.applyAttackOverlay(phase);
       return;
     }
     const motionController = this.resolveMotionController(id) || this.motionController;
     motionController.applyAttack({ id, phase, bones: rigBones, visualRoot: this.visualRoot });
+    this.applyAttackOverlay(phase);
+  }
+
+  applyAttackOverlay(phase) {
+    const style = this.stateStyle;
+    const lag = phase.followThrough * (style.equipmentLag ?? DEFAULT_STATE_STYLE.equipmentLag);
+    const sway = Math.sin(phase.progress * Math.PI * 2) * phase.followThrough * (style.attackSway ?? DEFAULT_STATE_STYLE.attackSway);
+    const b = getRigBones(this.rig);
+    this.visualRoot.rotation.z += sway * .35;
+    b.chest.rotation.z += sway;
+    b.leftShoulder.rotation.z -= lag * .28;
+    b.rightShoulder.rotation.z += lag * .28;
+    b.leftLowerArm.rotation.x += lag * .18;
+    b.rightLowerArm.rotation.x += lag * .18;
+  }
+
+  applyHumanoidArmBalance() {
+    const b = getRigBones(this.rig);
+    distributeArmToShoulder(b.leftShoulder, b.leftArm, b.leftLowerArm, -1);
+    distributeArmToShoulder(b.rightShoulder, b.rightArm, b.rightLowerArm, 1);
   }
 
   applyPickupOverlay() {
     const lift = Math.sin((1 - this.pickupRemaining / .28) * Math.PI);
+    const settle = Math.sin((1 - this.pickupRemaining / .28) * Math.PI * 2) * (1 - this.pickupRemaining / .28);
     this.rig.getBone("leftUpperArm").rotation.x -= lift * .55;
     this.rig.getBone("rightUpperArm").rotation.x -= lift * .55;
+    this.rig.getBone("leftLowerArm").rotation.z -= lift * .18;
+    this.rig.getBone("rightLowerArm").rotation.z += lift * .18;
+    this.rig.getBone("chest").rotation.z += settle * .035;
+  }
+
+  applyTransition(delta) {
+    if (!this.transition) return;
+    this.transition.elapsed += delta;
+    const alpha = smooth(this.transition.elapsed / this.transition.duration);
+    const current = this.capturePose();
+    this.blendFrom(this.transition.from, current, alpha);
+    if (alpha >= 1) this.transition = null;
+  }
+
+  capturePose() {
+    const bones = Object.fromEntries(MOTION_BONES.map((name) => {
+      const bone = this.rig.getBone(name);
+      return [name, {
+        position: { x: bone.position.x, y: bone.position.y, z: bone.position.z },
+        rotation: { x: bone.rotation.x, y: bone.rotation.y, z: bone.rotation.z }
+      }];
+    }));
+    return {
+      visualRoot: {
+        position: { x: this.visualRoot.position.x, y: this.visualRoot.position.y, z: this.visualRoot.position.z },
+        rotation: { x: this.visualRoot.rotation.x, y: this.visualRoot.rotation.y, z: this.visualRoot.rotation.z }
+      },
+      bones
+    };
+  }
+
+  blendFrom(from, to, alpha) {
+    setTransform(this.visualRoot, from.visualRoot, to.visualRoot, alpha);
+    for (const name of MOTION_BONES) setTransform(this.rig.getBone(name), from.bones[name], to.bones[name], alpha);
   }
 }
 
@@ -307,10 +407,18 @@ export function getAttackPhase(snapshot, spec) {
   const startup = Math.max(1, spec?.startupFrames || 1);
   const active = Math.max(1, spec?.activeFrames || 1);
   const recovery = Math.max(1, spec?.recoveryFrames || 1);
-  if (elapsed < startup) return { pose: smooth(elapsed / startup), strike: 0 };
-  if (elapsed < startup + active) return { pose: 1, strike: smooth((elapsed - startup) / Math.max(1, active * .45)) };
+  const total = startup + active + recovery;
+  const progress = clamp01(elapsed / total);
+  const windup = elapsed < startup ? smooth(elapsed / startup) : 1 - smooth((elapsed - startup) / Math.max(1, active + recovery));
+  const activeElapsed = elapsed - startup;
+  const strike = elapsed < startup ? 0 : elapsed < startup + active ? smooth(activeElapsed / Math.max(1, active * .45)) : 1 - smooth((elapsed - startup - active) / recovery);
+  const impact = elapsed < startup || elapsed >= startup + active ? 0 : pulse(activeElapsed / active, .12, .58);
+  const followThrough = elapsed < startup ? 0 : elapsed < startup + active ? smooth(activeElapsed / active) : 1 - smooth((elapsed - startup - active) / recovery);
+  const recover = elapsed < startup + active ? 0 : smooth((elapsed - startup - active) / recovery);
+  if (elapsed < startup) return { pose: smooth(elapsed / startup), strike: 0, windup, impact, followThrough, recover, elapsedFrames: elapsed, progress };
+  if (elapsed < startup + active) return { pose: 1, strike, windup, impact, followThrough, recover, elapsedFrames: elapsed, progress };
   const release = 1 - smooth((elapsed - startup - active) / recovery);
-  return { pose: release, strike: release };
+  return { pose: release, strike: release, windup, impact, followThrough, recover, elapsedFrames: elapsed, progress };
 }
 
 function applyPunch(bones, id, phase) {
@@ -327,12 +435,16 @@ function applyGuardCounter(bones, phase, visualRoot) {
   bones.hips.rotation.y = .18 * strike;
   bones.chest.rotation.x = -.08;
   bones.chest.rotation.y = .42 * strike - .2 * windup;
-  bones.leftArm.rotation.x = -.72;
-  bones.leftArm.rotation.z = -.46;
-  bones.rightArm.rotation.x = -.28 - .84 * strike;
-  bones.rightArm.rotation.z = .22 - .34 * strike;
-  bones.leftLowerArm.rotation.z = -.52;
-  bones.rightLowerArm.rotation.z = .24 + .3 * strike;
+  bones.leftShoulder.rotation.y = -.08;
+  bones.rightShoulder.rotation.y = .16 * strike;
+  bones.leftShoulder.rotation.z = -.2;
+  bones.rightShoulder.rotation.z = .18 + .1 * strike;
+  bones.leftArm.rotation.x = -.52;
+  bones.leftArm.rotation.z = -.72;
+  bones.rightArm.rotation.x = -.18 - .68 * strike;
+  bones.rightArm.rotation.z = .42 - .16 * strike;
+  bones.leftLowerArm.rotation.z = -.62;
+  bones.rightLowerArm.rotation.z = .34 + .24 * strike;
   bones.leftLeg.rotation.x = -.16 * strike;
   bones.rightLeg.rotation.x = .18 * strike;
   bones.leftLowerLeg.rotation.x = .24 * strike;
@@ -340,9 +452,43 @@ function applyGuardCounter(bones, phase, visualRoot) {
   visualRoot.position.z = .18 * strike;
 }
 
+function distributeArmToShoulder(shoulder, arm, lowerArm, side) {
+  const armForward = arm.rotation.x;
+  const armSpread = arm.rotation.z;
+  shoulder.rotation.y += armForward * .16;
+  shoulder.rotation.z += armSpread * .24;
+  shoulder.rotation.x += Math.abs(armSpread) * .035;
+  arm.rotation.x *= .82;
+  arm.rotation.z *= .74;
+  lowerArm.rotation.z += side * Math.max(.08, Math.abs(armForward) * .08 + Math.abs(armSpread) * .06);
+}
+
 function smooth(value) {
   const t = Math.max(0, Math.min(1, value));
   return t * t * (3 - 2 * t);
+}
+
+function pulse(value, start, end) {
+  if (value <= start || value >= end) return 0;
+  const t = (value - start) / (end - start);
+  return Math.sin(t * Math.PI);
+}
+
+function setTransform(object, from, to, alpha) {
+  object.position.set(
+    mix(from.position.x, to.position.x, alpha),
+    mix(from.position.y, to.position.y, alpha),
+    mix(from.position.z, to.position.z, alpha)
+  );
+  object.rotation.set(
+    mix(from.rotation.x, to.rotation.x, alpha),
+    mix(from.rotation.y, to.rotation.y, alpha),
+    mix(from.rotation.z, to.rotation.z, alpha)
+  );
+}
+
+function mix(from, to, alpha) {
+  return from + (to - from) * alpha;
 }
 
 function clamp01(value) {

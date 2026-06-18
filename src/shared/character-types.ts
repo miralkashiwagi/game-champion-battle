@@ -86,6 +86,12 @@ export interface EquipmentUiDefinition {
 export interface ScriptMotionPhase {
   pose: number;
   strike: number;
+  windup: number;
+  impact: number;
+  followThrough: number;
+  recover: number;
+  elapsedFrames: number;
+  progress: number;
 }
 
 export interface ScriptMotionBones {

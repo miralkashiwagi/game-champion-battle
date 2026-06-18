@@ -1,7 +1,7 @@
 import type { ScriptMotionController } from "../../shared/character-types.ts";
 
 export const motionController = {
-  stateStyle: { moveSpeed: 11, idleBob: .018, idleLean: -.055, idleArmSpread: .16, idleLegSpread: .035, moveBob: .045, moveLean: -.12, moveTwist: .08, moveStride: .82, moveArmSwing: .48, guardLean: -.14, guardTwist: -.12, guardLeftArmX: -.72, guardLeftArmZ: -.62, guardRightArmX: -.58, guardRightArmZ: .42 },
+  stateStyle: { moveSpeed: 11, idleBob: .018, idleLean: -.055, idleArmSpread: .68, idleLegSpread: .035, moveBob: .045, moveLean: -.12, moveTwist: .08, moveStride: .82, moveArmSwing: .48, guardLean: -.14, guardTwist: -.12, guardLeftArmX: -.68, guardLeftArmZ: -.82, guardRightArmX: -.52, guardRightArmZ: .58 },
   applyAttack({ phase, bones: b, visualRoot }) {
     const windup=phase.pose; const strike=phase.strike;
     b.chest.rotation.x=-.12; b.leftLeg.rotation.z=-.1; b.rightLeg.rotation.z=.1;

@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import * as THREE from "three";
 import { MODEL_CONTRACT, ProceduralCharacterView } from "../src/client/character-view.js";
+import { getAttackPhase } from "../src/client/script-motion-player.js";
 import { createShowcaseEquipment, faceShowcaseCamera } from "../src/client/scene.js";
 
 const equipmentSets = {
@@ -115,6 +116,40 @@ test("攻撃モーションはgameRootのサーバー座標を変更しない", 
   view.dispose();
 });
 
+test("攻撃フェーズは互換値と拡張値を返す", () => {
+  const spec = { startupFrames: 10, activeFrames: 8, recoveryFrames: 12 };
+  const windup = getAttackPhase({ actionStartedFrame: 0, snapshotFrame: 5 }, spec);
+  assert.ok(windup.pose > 0);
+  assert.equal(windup.strike, 0);
+  assert.ok(windup.windup > 0);
+  assert.equal(windup.impact, 0);
+  assert.equal(windup.recover, 0);
+  assert.ok(windup.progress > 0 && windup.progress < 1);
+  assert.equal(windup.elapsedFrames, 5);
+
+  const active = getAttackPhase({ actionStartedFrame: 0, snapshotFrame: 13 }, spec);
+  assert.equal(active.pose, 1);
+  assert.ok(active.strike > 0);
+  assert.ok(active.impact > 0);
+  assert.ok(active.followThrough > 0);
+
+  const recovery = getAttackPhase({ actionStartedFrame: 0, snapshotFrame: 24 }, spec);
+  assert.ok(recovery.pose < 1);
+  assert.ok(recovery.strike < 1);
+  assert.ok(recovery.recover > 0);
+});
+
+test("状態遷移ブレンド中もgameRoot座標を変更しない", () => {
+  const view = new ProceduralCharacterView("silver_knight");
+  view.root.position.set(2.25, 0, -.35);
+  view.update({ state: "Idle", facing: 1, worldY: 0 }, 1 / 60, 0);
+  view.update({ state: "Guard", facing: 1, worldY: 0 }, 1 / 120, 0);
+  assert.equal(view.root.position.x, 2.25);
+  assert.equal(view.root.position.z, -.35);
+  assert.notEqual(view.rig.getBone("chest").rotation.x, 0);
+  view.dispose();
+});
+
 test("キャラクター別の判定表示を切り替えられる", () => {
   const silver = new ProceduralCharacterView("silver_knight");
   const saladin = new ProceduralCharacterView("saladin");
@@ -185,6 +220,8 @@ test("共通Humanoid走行は肩、肘、膝、足首を連動させる", () => 
   assert.notEqual(view.rig.getBone("leftLowerArm").rotation.z, 0);
   assert.notEqual(view.rig.getBone("leftLowerLeg").rotation.x, 0);
   assert.notEqual(view.rig.getBone("leftFoot").rotation.x, 0);
+  assert.notEqual(view.rig.getBone("spine").position.y, view.motionPlayer.basePositions.get("spine").y);
+  assert.notEqual(view.rig.getBone("chest").rotation.z, 0);
   assert.equal(view.profile.scale, 1);
   view.dispose();
 });
@@ -258,6 +295,19 @@ test("スクリプトモデルの攻撃も肘と膝を使用する", () => {
   assert.notEqual(view.rig.getBone("rightLowerArm").rotation.z, 0);
   assert.notEqual(view.rig.getBone("rightLowerLeg").rotation.x, 0);
   view.dispose();
+});
+
+test("双剣モーションは装備ごとに異なる骨回転を持つ", () => {
+  const saladin = new ProceduralCharacterView("saladin");
+  const syal = new ProceduralCharacterView("syal");
+  const snapshotBase = { state: "AttackActive", facing: 1, worldY: 0, actionStartedFrame: 2, snapshotFrame: 16 };
+  saladin.update({ ...snapshotBase, activeActionId: "saladin_lunar_slash" }, 1 / 60, 0);
+  syal.update({ ...snapshotBase, activeActionId: "syal_lunar_slash" }, 1 / 60, 0);
+  assert.notEqual(saladin.rig.getBone("hips").position.y, syal.rig.getBone("hips").position.y);
+  assert.notEqual(saladin.rig.getBone("chest").rotation.z, syal.rig.getBone("chest").rotation.z);
+  assert.notEqual(saladin.visualRoot.rotation.y, syal.visualRoot.rotation.y);
+  saladin.dispose();
+  syal.dispose();
 });
 
 test("空中被弾は速度に応じて全身Humanoidポーズを変える", () => {
