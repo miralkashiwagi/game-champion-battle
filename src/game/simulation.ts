@@ -14,6 +14,7 @@ import {
   OWNER_PICKUP_LOCK_FRAMES,
   PICKUP_RADIUS,
   STAGE_WIDTH,
+  TICK_RATE,
   TICK_MS
 } from "../shared/constants.ts";
 import { COMMON_BAREHAND_COMBO, COMMON_GUARD_COUNTER } from "../characters/common.ts";
@@ -47,7 +48,10 @@ interface PlayerRuntime extends PlayerSnapshot {
   activeAttack: ActiveAttack | null;
   invulnerableUntilFrame: number;
   attackHeldFrames: number;
+  attackHoldConsumed: boolean;
 }
+
+const HOLD_ATTACK_FRAMES = Math.round(TICK_RATE * 0.4);
 
 export class MatchSimulation {
   frame = 0;
@@ -84,7 +88,8 @@ export class MatchSimulation {
       attackTimer: 0,
       activeAttack: null,
       invulnerableUntilFrame: 0,
-      attackHeldFrames: 0
+      attackHeldFrames: 0,
+      attackHoldConsumed: false
     });
     this.push("joined", `${side} joined as ${CHARACTER_SPECS[characterId].ui.name}`);
     if (this.players.size === 2) {
@@ -198,22 +203,31 @@ export class MatchSimulation {
         }
       }
 
-      if (input.attack) {
-        player.attackHeldFrames += 1;
-      } else {
-        if (player.previousInput.attack && player.attackHeldFrames >= 18) {
-          const holdAttack = this.getHoldAttack(player);
-          if (holdAttack) this.startAttack(player, holdAttack);
-        }
+      const attackPressed = input.attack && !player.previousInput.attack;
+      const attackReleased = !input.attack && player.previousInput.attack;
+      if (attackPressed) {
         player.attackHeldFrames = 0;
-      }
-
-      if (input.attack && !player.previousInput.attack) {
+        player.attackHoldConsumed = false;
         if (player.state === "GuardCounterWindow") {
           this.startAttack(player, COMMON_GUARD_COUNTER);
-        } else {
-          this.startAttack(player, this.getComboAttack(player));
+          player.attackHoldConsumed = true;
         }
+      }
+
+      if (input.attack && !player.attackHoldConsumed && player.state !== "GuardCounterWindow") {
+        player.attackHeldFrames += 1;
+        if (player.attackHeldFrames >= HOLD_ATTACK_FRAMES) {
+          const holdAttack = this.getHoldAttack(player);
+          if (holdAttack) {
+            this.startAttack(player, holdAttack);
+            player.attackHoldConsumed = true;
+            player.attackHeldFrames = 0;
+          }
+        }
+      } else if (attackReleased) {
+        if (!player.attackHoldConsumed) this.startAttack(player, this.getComboAttack(player));
+        player.attackHeldFrames = 0;
+        player.attackHoldConsumed = false;
       }
 
       if (!player.activeAttack && player.state !== "Guard") {
