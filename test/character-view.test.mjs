@@ -3,7 +3,7 @@ import { test } from "node:test";
 import * as THREE from "three";
 import { MODEL_CONTRACT, ProceduralCharacterView } from "../src/client/character-view.js";
 import { getAttackPhase } from "../src/client/script-motion-player.js";
-import { createShowcaseEquipment, faceShowcaseCamera } from "../src/client/scene.js";
+import { applyBattleCharacterRenderScale, BATTLE_CAMERA_TARGET_Y, BATTLE_CHARACTER_RENDER_SCALE, createShowcaseEquipment, faceShowcaseCamera } from "../src/client/scene.js";
 
 const equipmentSets = {
   silver_knight: { cloak: "silver_knight_cloak", head: "silver_knight_helmet", armor: "silver_knight_armor", weapon: "silver_knight_sword" },
@@ -113,6 +113,17 @@ test("攻撃モーションはgameRootのサーバー座標を変更しない", 
   }, 1 / 60, 1);
   assert.equal(view.root.position.x, 3);
   assert.notEqual(view.visualRoot.position.z, 0);
+  view.dispose();
+});
+
+test("戦闘中のキャラクター描画はgameRoot側で全体拡大する", () => {
+  const view = new ProceduralCharacterView("silver_knight");
+  assert.equal(BATTLE_CHARACTER_RENDER_SCALE, 2);
+  assert.equal(BATTLE_CAMERA_TARGET_Y, 1.6);
+  assert.equal(view.visualRoot.scale.x, view.profile.scale);
+  applyBattleCharacterRenderScale(view.root);
+  assert.equal(view.root.scale.x, 2);
+  assert.equal(view.hurtboxView.scale.x, 1);
   view.dispose();
 });
 

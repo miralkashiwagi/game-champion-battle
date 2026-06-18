@@ -24,7 +24,7 @@ const SHARED_FALLBACK_MODEL = {
   proportions: { shoulderWidth: 1, torsoHeight: 1.04, torsoDepth: 1, legLength: 1.1, headScale: 1, limbWidth: 1 },
   upperArmMaterial: "cloth"
 };
-const MODEL_DISPLAY_SCALE = 1.5;
+const MODEL_DISPLAY_SCALE = 1;
 const SCRIPT_MODEL_BASE_SCALE = .895;
 
 export const MODEL_CONTRACT = Object.freeze({

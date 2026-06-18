@@ -5,6 +5,8 @@ import { createFieldItemView, ProceduralCharacterView } from "./character-view.j
 const STAGE_CENTER = 640;
 const WORLD_SCALE = 78;
 const GROUND_Y = 430;
+export const BATTLE_CHARACTER_RENDER_SCALE = 2;
+export const BATTLE_CAMERA_TARGET_Y = 1.6;
 
 const CAMERA_POSES = {
   title: { position: [0, 4.8, 10.8], target: [0, 1.4, 0] },
@@ -12,7 +14,7 @@ const CAMERA_POSES = {
   select: { position: [0, 3.4, 9.2], target: [0, 1.3, 0] },
   detail: { position: [4.4, 3.2, 7.2], target: [-2.7, 1.35, 0] },
   matching: { position: [0, 3.8, 8.8], target: [0, 1.3, 0] },
-  battle: { position: [0, 4.1, 11.7], target: [0, 1.25, 0] },
+  battle: { position: [0, 4.1, 11.7], target: [0, BATTLE_CAMERA_TARGET_Y, 0] },
   result: { position: [0, 3.7, 8.6], target: [0, 1.25, 0] }
 };
 
@@ -256,7 +258,7 @@ export class ChampionScene {
         this.battleViews.set(player.side, view);
       }
       view.root.visible = true;
-      view.root.scale.setScalar(1);
+      applyBattleCharacterRenderScale(view.root);
       view.root.position.x = worldX(player.position.x);
       view.root.position.z = player.side === "p1" ? .15 : -.15;
     }
@@ -415,6 +417,10 @@ export function createShowcaseEquipment(characterId) {
 
 export function faceShowcaseCamera(root, cameraPosition) {
   root.rotation.y = Math.atan2(cameraPosition.x - root.position.x, cameraPosition.z - root.position.z);
+}
+
+export function applyBattleCharacterRenderScale(root) {
+  root.scale.setScalar(BATTLE_CHARACTER_RENDER_SCALE);
 }
 
 function worldX(x) {
