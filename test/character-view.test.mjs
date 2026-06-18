@@ -94,7 +94,7 @@ test("攻撃モーションはgameRootのサーバー座標を変更しない", 
     state: "AttackActive",
     facing: 1,
     worldY: 0,
-    activeActionId: "saladin_slash",
+    activeActionId: "saladin_lunar_slash",
     actionStartedFrame: 10,
     snapshotFrame: 24
   }, 1 / 60, 1);
@@ -241,7 +241,7 @@ test("スクリプトモデルの攻撃も肘と膝を使用する", () => {
   const view = new ProceduralCharacterView("saladin");
   view.update({
     state: "AttackActive", facing: 1, worldY: 0,
-    activeActionId: "saladin_slash", actionStartedFrame: 2, snapshotFrame: 16
+    activeActionId: "saladin_lunar_slash", actionStartedFrame: 2, snapshotFrame: 16
   }, 1 / 60, 0);
   assert.notEqual(view.rig.getBone("rightLowerArm").rotation.z, 0);
   assert.notEqual(view.rig.getBone("rightLowerLeg").rotation.x, 0);
