@@ -1,4 +1,14 @@
-import type { ScriptMotionController } from "../../../shared/character-types.ts";
+import { EQUIPMENT_VRMA_CLIPS, VRMA_FALLBACK_REASONS } from "../../vrma.ts";
+import type { ScriptMotionController, VrmaMotionMap } from "../../../shared/character-types.ts";
+
+export const vrmaMotions = {
+  saladin_combo_1: EQUIPMENT_VRMA_CLIPS.slashToLeft({ interruptibleAfter: .4 }),
+  saladin_combo_2: EQUIPMENT_VRMA_CLIPS.slashToRight({ interruptibleAfter: .4 }),
+  saladin_combo_3: EQUIPMENT_VRMA_CLIPS.slashUp({ interruptibleAfter: .44 }),
+  saladin_combo_4: EQUIPMENT_VRMA_CLIPS.slashToLeft({ interruptibleAfter: .48, fallbackReason: VRMA_FALLBACK_REASONS.slash }),
+  saladin_lunar_slash: EQUIPMENT_VRMA_CLIPS.slashToLeft({ interruptibleAfter: .58, fallbackReason: VRMA_FALLBACK_REASONS.thrust }),
+  saladin_forward_cut: EQUIPMENT_VRMA_CLIPS.slashToRight({ interruptibleAfter: .5, fallbackReason: VRMA_FALLBACK_REASONS.thrust })
+} satisfies VrmaMotionMap;
 
 export const motionController = {
   stateStyle: {},

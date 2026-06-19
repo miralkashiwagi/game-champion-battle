@@ -9,6 +9,8 @@ await mkdir("dist/client/characters/silver_knight", { recursive: true });
 await cp("src/characters/silver_knight/silver_knight.vrm", "dist/client/characters/silver_knight/silver_knight.vrm");
 await mkdir("dist/client/characters/syal", { recursive: true });
 await cp("src/characters/syal/syal.vrm", "dist/client/characters/syal/syal.vrm");
+await mkdir("dist/client/characters/saladin", { recursive: true });
+await cp("src/characters/saladin/saladin.vrm", "dist/client/characters/saladin/saladin.vrm");
 await cp("src/equipment", "dist/client/equipment", {
   recursive: true,
   filter: async (source) => (await stat(source)).isDirectory() || extname(source) === ".glb"

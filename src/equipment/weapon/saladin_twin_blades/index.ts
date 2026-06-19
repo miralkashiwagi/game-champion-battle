@@ -1,7 +1,7 @@
 import { behavior } from "./behavior.ts";
 import { definition } from "./definition.ts";
-import { motionController } from "./motions.ts";
+import { motionController, vrmaMotions } from "./motions.ts";
 import { visual } from "./visual.ts";
 import type { EquipmentRegistration } from "../../../shared/character-types.ts";
 
-export const registration = { definition, behavior, visual, motionController } satisfies EquipmentRegistration<"saladin_twin_blades">;
+export const registration = { definition, behavior, visual, motionController, vrmaMotions } satisfies EquipmentRegistration<"saladin_twin_blades">;

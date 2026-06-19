@@ -1,4 +1,9 @@
-import type { ScriptMotionController } from "../../../shared/character-types.ts";
+import { EQUIPMENT_VRMA_CLIPS } from "../../vrma.ts";
+import type { ScriptMotionController, VrmaMotionMap } from "../../../shared/character-types.ts";
+
+export const vrmaMotions = {
+  silver_headbutt: EQUIPMENT_VRMA_CLIPS.headbutt({ interruptibleAfter: .42 })
+} satisfies VrmaMotionMap;
 
 export const motionController = {
   stateStyle: {},

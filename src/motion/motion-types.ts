@@ -1,24 +1,8 @@
-import type { MotionId } from "../shared/character-types.ts";
+import type { VrmaMotionClipDefinition, VrmaMotionLayer, VrmaRootMotionMode } from "../shared/character-types.ts";
 
-export type MotionLayer = "base" | "upperBody" | "additive";
-export type RootMotionMode = "none" | "inPlace" | "gameplay" | "clip";
-
-export interface CharacterMotionClip {
-  url: string;
-  loop: boolean;
-  fadeIn?: number;
-  fadeOut?: number;
-  layer: MotionLayer;
-  rootMotion?: RootMotionMode;
-  lockInput?: boolean;
-  lockFacing?: boolean;
-  speedScaleByVelocity?: boolean;
-  interruptibleAfter?: number;
-  hitFrames?: [number, number] | number[];
-  weight?: number;
-  fallbackFor?: MotionId[];
-  fallbackReason?: string;
-}
+export type MotionLayer = VrmaMotionLayer;
+export type RootMotionMode = VrmaRootMotionMode;
+export type CharacterMotionClip = VrmaMotionClipDefinition;
 
 export interface CharacterMotionSet {
   modelType: "vrm1";

@@ -1,4 +1,9 @@
-import type { ScriptMotionController } from "../../../shared/character-types.ts";
+import { EQUIPMENT_VRMA_CLIPS, VRMA_FALLBACK_REASONS } from "../../vrma.ts";
+import type { ScriptMotionController, VrmaMotionMap } from "../../../shared/character-types.ts";
+
+export const vrmaMotions = {
+  saladin_windwall: EQUIPMENT_VRMA_CLIPS.headbutt({ interruptibleAfter: .2, fallbackReason: VRMA_FALLBACK_REASONS.head })
+} satisfies VrmaMotionMap;
 
 export const motionController = {
   stateStyle: {},

@@ -1,4 +1,9 @@
-import type { ScriptMotionController } from "../../../shared/character-types.ts";
+import { EQUIPMENT_VRMA_CLIPS, VRMA_FALLBACK_REASONS } from "../../vrma.ts";
+import type { ScriptMotionController, VrmaMotionMap } from "../../../shared/character-types.ts";
+
+export const vrmaMotions = {
+  syal_spin: EQUIPMENT_VRMA_CLIPS.slashUp({ interruptibleAfter: .48, fallbackReason: VRMA_FALLBACK_REASONS.slash })
+} satisfies VrmaMotionMap;
 
 export const motionController = {
   stateStyle: {},

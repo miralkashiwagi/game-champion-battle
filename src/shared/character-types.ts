@@ -126,6 +126,28 @@ export interface ScriptMotionController {
   applyAttack: (context: ScriptAttackMotionContext) => void;
 }
 
+export type VrmaMotionLayer = "base" | "upperBody" | "additive";
+export type VrmaRootMotionMode = "none" | "inPlace" | "gameplay" | "clip";
+
+export interface VrmaMotionClipDefinition {
+  url: string;
+  loop: boolean;
+  fadeIn?: number;
+  fadeOut?: number;
+  layer: VrmaMotionLayer;
+  rootMotion?: VrmaRootMotionMode;
+  lockInput?: boolean;
+  lockFacing?: boolean;
+  speedScaleByVelocity?: boolean;
+  interruptibleAfter?: number;
+  hitFrames?: [number, number] | number[];
+  weight?: number;
+  fallbackFor?: MotionId[];
+  fallbackReason?: string;
+}
+
+export type VrmaMotionMap = Record<MotionId, VrmaMotionClipDefinition>;
+
 export interface SkillSpec extends AttackSpec {
   slot: EquipmentSlot;
   skillId: string;
@@ -244,6 +266,7 @@ export interface EquipmentRegistration<Id extends string = string> {
   behavior: EquipmentBehaviorHooks;
   visual: EquipmentVisualFactory;
   motionController: ScriptMotionController;
+  vrmaMotions?: VrmaMotionMap;
 }
 
 export interface CharacterRegistration<Id extends string = string> {
