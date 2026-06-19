@@ -60,6 +60,7 @@ interface PlayerRuntime extends PlayerSnapshot {
 const HOLD_ATTACK_FRAMES = Math.round(TICK_RATE * 0.4);
 const COMBO_CONTINUE_WINDOW_FRAMES = Math.round(TICK_RATE * 0.45);
 const DASH_TAP_WINDOW_FRAMES = Math.round(TICK_RATE * 0.25);
+const DOWN_FRAMES = Math.round(TICK_RATE * 1);
 
 export class MatchSimulation {
   frame = 0;
@@ -186,7 +187,7 @@ export class MatchSimulation {
     }
     if (player.stateTimer <= 0 && player.state === "KneelDown") {
       player.state = "Down";
-      player.stateTimer = 45;
+      player.stateTimer = DOWN_FRAMES;
     }
     if (player.stateTimer <= 0 && player.state === "Down") {
       player.state = "Idle";
@@ -268,7 +269,7 @@ export class MatchSimulation {
       player.velocity.y = 0;
       if (player.state === "AirDamaged") {
         player.state = "Down";
-        player.stateTimer = 45;
+        player.stateTimer = DOWN_FRAMES;
       } else if (player.state === "Jump") {
         player.state = "Idle";
       }

@@ -3,7 +3,7 @@ import { test } from "node:test";
 import { MatchSimulation } from "../src/game/simulation.ts";
 import { CHARACTER_IDS, DEFAULT_CHARACTER_ID, normalizeCharacterId } from "../src/characters/registry.ts";
 import { COMMON_GUARD_COUNTER } from "../src/characters/common.ts";
-import { DASH_SPEED, MOVE_SPEED } from "../src/shared/constants.ts";
+import { DASH_SPEED, MOVE_SPEED, TICK_RATE } from "../src/shared/constants.ts";
 
 const idleInput = (frame = 0) => ({
   frame,
@@ -486,6 +486,19 @@ test("Silver Knightの溜め突きは相手を膝つきからダウンへ移行�
   assert.equal(saladin.state, "Down");
 });
 
+test("ダウン時間は1秒継続する", () => {
+  const sim = setup();
+  const [, saladin] = players(sim);
+  saladin.state = "Down";
+  saladin.stateTimer = TICK_RATE;
+
+  for (let i = 0; i < TICK_RATE - 1; i++) sim.tick();
+  assert.equal(saladin.state, "Down");
+
+  sim.tick();
+  assert.equal(saladin.state, "Idle");
+});
+
 test("Silver Knightのスラッシュはガード中の相手へ3回命中する", async () => {
   const { EQUIPMENT_REGISTRY } = await import("../src/equipment/registry.ts");
   const sim = setup();
@@ -547,7 +560,7 @@ test("空中ダメージ中は追撃ダメージが入り、ダウン中は通�
 
   waitUntilAttackEnds(sim, silver);
   saladin.state = "Down";
-  saladin.stateTimer = 45;
+  saladin.stateTimer = TICK_RATE;
   saladin.position.y = 430;
   saladin.velocity.y = 0;
   sim.startAttack(silver, { id: "normal-vs-down", motionId: "normal-vs-down", name: "normal-vs-down", damage: 5, range: 90, startupFrames: 0, activeFrames: 2, recoveryFrames: 1, effect: "hitstun", guardPierce: true });
