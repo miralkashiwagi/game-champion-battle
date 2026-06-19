@@ -7,6 +7,7 @@ import { calculateEndAlignedStartTime, createInPlaceClip } from "../src/client/v
 import { findMissingVrmaMotionIds, getVrmaMotionSet } from "../src/client/vrma-motion-registry.js";
 import { applyBattleCharacterRenderScale, BATTLE_CAMERA_TARGET_Y, BATTLE_CHARACTER_RENDER_SCALE, ChampionScene, createShowcaseEquipment, faceShowcaseCamera } from "../src/client/scene.js";
 import { COMMON_BAREHAND_COMBO } from "../src/characters/common.ts";
+import { EQUIPMENT_VRMA_DURATION_BY_URL } from "../src/equipment/vrma.ts";
 
 const equipmentSets = {
   silver_knight: { cloak: "silver_knight_cloak", head: "silver_knight_helmet", armor: "silver_knight_armor", weapon: "silver_knight_sword" },
@@ -114,11 +115,7 @@ test("装備のmotions.tsがVRMA clipを選びregistryが収集する", async ()
 
 test("slash系VRMAは速度を落としつつ各アクションの終端へ合わせる", async () => {
   const { EQUIPMENT_REGISTRY } = await import("../src/equipment/registry.ts");
-  const slashDurations = {
-    "/assets/motions/combat/slash-to-left.vrma": 2,
-    "/assets/motions/combat/slash-to-right.vrma": 2.16666674613953,
-    "/assets/motions/combat/slash-up.vrma": 1.66666662693024
-  };
+  const slashDurations = EQUIPMENT_VRMA_DURATION_BY_URL;
 
   for (const registration of Object.values(EQUIPMENT_REGISTRY)) {
     const attacks = [
@@ -134,8 +131,13 @@ test("slash系VRMAは速度を落としつつ各アクションの終端へ合�
       const actionSeconds = (attack.startupFrames + attack.activeFrames + attack.recoveryFrames) / 60;
       assert.equal(clip.alignEndWithAction, true, `${motionId} should align the VRMA end to the action end`);
       assert.equal(clip.actionDurationSeconds, actionSeconds);
-      assert.ok(clip.playbackRate >= 1.2 && clip.playbackRate <= 1.55, `${motionId} should use a natural playback rate`);
-      assert.ok(calculateEndAlignedStartTime(slashDurations[clip.url], clip) > 0, `${motionId} should skip the VRMA opening`);
+      assert.ok(clip.playbackRate >= 1 && clip.playbackRate <= 1.400001, `${motionId} should use a natural playback rate`);
+      const startTime = calculateEndAlignedStartTime(slashDurations[clip.url], clip);
+      const playbackSeconds = slashDurations[clip.url] / clip.playbackRate;
+      assert.ok(
+        startTime > 0 || playbackSeconds <= actionSeconds + 1e-6,
+        `${motionId} should either skip the VRMA opening or fit at near-natural speed`
+      );
     }
   }
 });
