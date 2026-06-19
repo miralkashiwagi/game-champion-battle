@@ -62,7 +62,6 @@ export class VrmaMotionPlayer {
     next.action.enabled = true;
     next.action.setEffectiveWeight(next.config.weight ?? 1);
     next.action.setEffectiveTimeScale(next.config.playbackRate ?? 1);
-    next.action.time = calculateEndAlignedStartTime(next.action.getClip().duration, next.config);
     next.action.fadeIn(fadeSeconds);
     next.action.play();
     if (current && current.action !== next.action) current.action.fadeOut(fadeSeconds);
@@ -88,12 +87,6 @@ export class VrmaMotionPlayer {
     this.mixer.stopAllAction();
     this.actions.clear();
   }
-}
-
-export function calculateEndAlignedStartTime(clipDuration, config = {}) {
-  if (!config.alignEndWithAction || !config.actionDurationSeconds) return 0;
-  const playbackRate = Math.max(.001, config.playbackRate ?? 1);
-  return Math.max(0, clipDuration - config.actionDurationSeconds * playbackRate);
 }
 
 export function createInPlaceClip(clip, config = {}) {

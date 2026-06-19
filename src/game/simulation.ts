@@ -348,7 +348,7 @@ export class MatchSimulation {
     if (defender.state !== "Dead") {
       if (spec.effect === "kneel") {
         defender.state = "KneelDown";
-        defender.stateTimer = 90;
+        defender.stateTimer = 30;
       } else if (spec.effect === "air" || spec.effect === "down") {
         defender.state = "AirDamaged";
         defender.stateTimer = 45;

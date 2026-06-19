@@ -142,8 +142,6 @@ export interface VrmaMotionClipDefinition {
   lockFacing?: boolean;
   speedScaleByVelocity?: boolean;
   playbackRate?: number;
-  alignEndWithAction?: boolean;
-  actionDurationSeconds?: number;
   interruptibleAfter?: number;
   hitFrames?: [number, number] | number[];
   weight?: number;

@@ -3,11 +3,9 @@ import { test } from "node:test";
 import * as THREE from "three";
 import { MODEL_CONTRACT, ProceduralCharacterView } from "../src/client/character-view.js";
 import { getAttackPhase } from "../src/client/script-motion-player.js";
-import { calculateEndAlignedStartTime, createInPlaceClip } from "../src/client/vrma-motion-player.js";
+import { createInPlaceClip } from "../src/client/vrma-motion-player.js";
 import { findMissingVrmaMotionIds, getVrmaMotionSet } from "../src/client/vrma-motion-registry.js";
 import { applyBattleCharacterRenderScale, BATTLE_CAMERA_TARGET_Y, BATTLE_CHARACTER_RENDER_SCALE, ChampionScene, createShowcaseEquipment, faceShowcaseCamera } from "../src/client/scene.js";
-import { COMMON_BAREHAND_COMBO } from "../src/characters/common.ts";
-import { EQUIPMENT_VRMA_DURATION_BY_URL } from "../src/equipment/vrma.ts";
 
 const equipmentSets = {
   silver_knight: { cloak: "silver_knight_cloak", head: "silver_knight_helmet", armor: "silver_knight_armor", weapon: "silver_knight_sword" },
@@ -111,54 +109,6 @@ test("装備のmotions.tsがVRMA clipを選びregistryが収集する", async ()
   assert.equal(clips.silver_headbutt.url, "/assets/motions/combat/headbutt.vrma");
   assert.equal(clips.syal_windwall.url, "/assets/motions/combat/headbutt.vrma");
   assert.equal(clips.saladin_windwall.url, "/assets/motions/combat/headbutt.vrma");
-});
-
-test("slash系VRMAは速度を落としつつ各アクションの終端へ合わせる", async () => {
-  const { EQUIPMENT_REGISTRY } = await import("../src/equipment/registry.ts");
-  const slashDurations = EQUIPMENT_VRMA_DURATION_BY_URL;
-
-  for (const registration of Object.values(EQUIPMENT_REGISTRY)) {
-    const attacks = [
-      ...(registration.definition.combo || []),
-      ...(registration.definition.holdAttack ? [registration.definition.holdAttack] : []),
-      registration.definition.skill
-    ];
-    const attackByMotionId = new Map(attacks.map((attack) => [attack.motionId, attack]));
-    for (const [motionId, clip] of Object.entries(registration.vrmaMotions || {})) {
-      if (!(clip.url in slashDurations)) continue;
-      const attack = attackByMotionId.get(motionId);
-      assert.ok(attack, `${motionId} should have an attack spec`);
-      const actionSeconds = (attack.startupFrames + attack.activeFrames + attack.recoveryFrames) / 60;
-      assert.equal(clip.alignEndWithAction, true, `${motionId} should align the VRMA end to the action end`);
-      assert.equal(clip.actionDurationSeconds, actionSeconds);
-      assert.ok(clip.playbackRate >= 1 && clip.playbackRate <= 1.400001, `${motionId} should use a natural playback rate`);
-      const startTime = calculateEndAlignedStartTime(slashDurations[clip.url], clip);
-      const playbackSeconds = slashDurations[clip.url] / clip.playbackRate;
-      assert.ok(
-        startTime > 0 || playbackSeconds <= actionSeconds + 1e-6,
-        `${motionId} should either skip the VRMA opening or fit at near-natural speed`
-      );
-    }
-  }
-});
-
-test("punch系VRMAは速度を落としつつ素手アクションの終端へ合わせる", () => {
-  const clips = getVrmaMotionSet().clips;
-  const punchDurations = {
-    barehand_1: 1.29166662693024,
-    barehand_2: 1,
-    barehand_3: 1
-  };
-
-  for (const attack of COMMON_BAREHAND_COMBO) {
-    const clip = clips[attack.motionId];
-    assert.ok(clip, `${attack.motionId} should have a VRMA clip`);
-    const actionSeconds = (attack.startupFrames + attack.activeFrames + attack.recoveryFrames) / 60;
-    assert.equal(clip.alignEndWithAction, true);
-    assert.equal(clip.actionDurationSeconds, actionSeconds);
-    assert.ok(clip.playbackRate >= 1.3 && clip.playbackRate <= 1.35);
-    assert.ok(calculateEndAlignedStartTime(punchDurations[attack.motionId], clip) > 0);
-  }
 });
 
 test("ダウンVRMAはゲーム上のDown時間内に倒れ切る速度で再生する", () => {

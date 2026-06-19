@@ -4,8 +4,8 @@ import { EQUIPMENT_REGISTRY } from "../equipment/registry.ts";
 const M = "/assets/motions";
 const fallbackDeathReason = "No dedicated death VRMA exists in the current repository; using knockdown as the visible fallback.";
 
-function clip(url, { loop = false, fadeIn = .12, fadeOut = .12, rootMotion = "inPlace", interruptibleAfter, fallbackReason, playbackRate, alignEndWithAction, actionDurationSeconds } = {}) {
-  return { url, loop, fadeIn, fadeOut, layer: "base", rootMotion, interruptibleAfter, fallbackReason, playbackRate, alignEndWithAction, actionDurationSeconds };
+function clip(url, { loop = false, fadeIn = .12, fadeOut = .12, rootMotion = "inPlace", interruptibleAfter, fallbackReason, playbackRate } = {}) {
+  return { url, loop, fadeIn, fadeOut, layer: "base", rootMotion, interruptibleAfter, fallbackReason, playbackRate };
 }
 
 export const VRMA_ASSET_URLS = Object.freeze([
@@ -52,9 +52,9 @@ const stateClips = {
 };
 
 const motionIdClips = {
-  barehand_1: clip(`${M}/combat/punch-01.vrma`, { interruptibleAfter: .38, playbackRate: 1.35, alignEndWithAction: true, actionDurationSeconds: 28 / 60 }),
-  barehand_2: clip(`${M}/combat/punch-02.vrma`, { interruptibleAfter: .38, playbackRate: 1.3, alignEndWithAction: true, actionDurationSeconds: 28 / 60 }),
-  barehand_3: clip(`${M}/combat/punch-03.vrma`, { interruptibleAfter: .42, playbackRate: 1.3, alignEndWithAction: true, actionDurationSeconds: 28 / 60 }),
+  barehand_1: clip(`${M}/combat/punch-01.vrma`, { interruptibleAfter: .38, playbackRate: 1.35 }),
+  barehand_2: clip(`${M}/combat/punch-02.vrma`, { interruptibleAfter: .38, playbackRate: 1.3 }),
+  barehand_3: clip(`${M}/combat/punch-03.vrma`, { interruptibleAfter: .42, playbackRate: 1.3 }),
   common_guard_counter: clip(`${M}/combat/block.vrma`, { interruptibleAfter: .35 })
 };
 
