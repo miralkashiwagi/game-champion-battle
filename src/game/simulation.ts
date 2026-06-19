@@ -51,12 +51,14 @@ interface PlayerRuntime extends PlayerSnapshot {
   invulnerableUntilFrame: number;
   attackHeldFrames: number;
   attackHoldConsumed: boolean;
+  comboContinueUntilFrame: number;
   lastLeftTapFrame: number;
   lastRightTapFrame: number;
   dashDirection: MoveAxis;
 }
 
 const HOLD_ATTACK_FRAMES = Math.round(TICK_RATE * 0.4);
+const COMBO_CONTINUE_WINDOW_FRAMES = Math.round(TICK_RATE * 0.45);
 const DASH_TAP_WINDOW_FRAMES = Math.round(TICK_RATE * 0.25);
 
 export class MatchSimulation {
@@ -96,6 +98,7 @@ export class MatchSimulation {
       invulnerableUntilFrame: 0,
       attackHeldFrames: 0,
       attackHoldConsumed: false,
+      comboContinueUntilFrame: Number.NEGATIVE_INFINITY,
       lastLeftTapFrame: Number.NEGATIVE_INFINITY,
       lastRightTapFrame: Number.NEGATIVE_INFINITY,
       dashDirection: 0
@@ -234,7 +237,7 @@ export class MatchSimulation {
           }
         }
       } else if (attackReleased) {
-        if (!player.attackHoldConsumed) this.startAttack(player, this.getComboAttack(player));
+        if (!player.attackHoldConsumed) this.startComboAttack(player);
         player.attackHeldFrames = 0;
         player.attackHoldConsumed = false;
       }
@@ -290,8 +293,8 @@ export class MatchSimulation {
     }
   }
 
-  startAttack(player: PlayerRuntime, spec: AttackSpec): void {
-    if (player.activeAttack || player.state === "Dead") return;
+  startAttack(player: PlayerRuntime, spec: AttackSpec): boolean {
+    if (player.activeAttack || player.state === "Dead") return false;
     player.activeAttack = { spec, startFrame: this.frame, hitsDone: 0 };
     player.attackTimer = 0;
     player.attackName = spec.name;
@@ -300,6 +303,7 @@ export class MatchSimulation {
     player.state = "AttackStartup";
     player.velocity.x = 0;
     if (spec.invulnerable) player.invulnerableUntilFrame = this.frame + spec.startupFrames + spec.activeFrames;
+    return true;
   }
 
   private resolveAttack(attacker: PlayerRuntime, defender: PlayerRuntime): void {
@@ -444,12 +448,21 @@ export class MatchSimulation {
   }
 
   private getComboAttack(player: PlayerRuntime): AttackSpec {
+    if (this.frame > player.comboContinueUntilFrame) player.comboStep = 0;
     const weapon = player.equipment.weapon;
     const combo = weapon ? EQUIPMENT_REGISTRY[weapon.equipmentId].definition.combo : COMMON_BAREHAND_COMBO;
     if (!combo?.length) throw new Error(`Weapon ${weapon?.equipmentId} has no combo`);
     const next = player.comboStep % combo.length;
     player.comboStep = next + 1;
     return combo[next] ?? combo[0]!;
+  }
+
+  private startComboAttack(player: PlayerRuntime): void {
+    if (player.activeAttack || player.state === "Dead") return;
+    const spec = this.getComboAttack(player);
+    if (this.startAttack(player, spec)) {
+      player.comboContinueUntilFrame = this.frame + attackTotalFrames(spec) + COMBO_CONTINUE_WINDOW_FRAMES;
+    }
   }
 
   private getHoldAttack(player: PlayerRuntime): AttackSpec | undefined {
@@ -577,6 +590,10 @@ function collisionHalfWidth(characterId: CharacterId): number {
 
 function attackRange(spec: AttackSpec): number {
   return spec.range * BATTLE_COLLISION_SCALE;
+}
+
+function attackTotalFrames(spec: AttackSpec): number {
+  return spec.startupFrames + spec.activeFrames + spec.recoveryFrames;
 }
 
 function inputAxis(input: InputState): MoveAxis {
