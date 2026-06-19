@@ -28,6 +28,9 @@ export function vrmaClip(
   if (options.lockInput !== undefined) result.lockInput = options.lockInput;
   if (options.lockFacing !== undefined) result.lockFacing = options.lockFacing;
   if (options.speedScaleByVelocity !== undefined) result.speedScaleByVelocity = options.speedScaleByVelocity;
+  if (options.playbackRate !== undefined) result.playbackRate = options.playbackRate;
+  if (options.alignEndWithAction !== undefined) result.alignEndWithAction = options.alignEndWithAction;
+  if (options.actionDurationSeconds !== undefined) result.actionDurationSeconds = options.actionDurationSeconds;
   if (options.hitFrames !== undefined) result.hitFrames = options.hitFrames;
   if (options.weight !== undefined) result.weight = options.weight;
   if (options.fallbackFor !== undefined) result.fallbackFor = options.fallbackFor;

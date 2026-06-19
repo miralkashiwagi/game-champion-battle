@@ -2,12 +2,12 @@ import { EQUIPMENT_VRMA_CLIPS, VRMA_FALLBACK_REASONS } from "../../vrma.ts";
 import type { ScriptMotionController, VrmaMotionMap } from "../../../shared/character-types.ts";
 
 export const vrmaMotions = {
-  saladin_combo_1: EQUIPMENT_VRMA_CLIPS.slashToLeft({ interruptibleAfter: .4 }),
-  saladin_combo_2: EQUIPMENT_VRMA_CLIPS.slashToRight({ interruptibleAfter: .4 }),
-  saladin_combo_3: EQUIPMENT_VRMA_CLIPS.slashUp({ interruptibleAfter: .44 }),
-  saladin_combo_4: EQUIPMENT_VRMA_CLIPS.slashToLeft({ interruptibleAfter: .48, fallbackReason: VRMA_FALLBACK_REASONS.slash }),
-  saladin_lunar_slash: EQUIPMENT_VRMA_CLIPS.slashToLeft({ interruptibleAfter: .58, fallbackReason: VRMA_FALLBACK_REASONS.thrust }),
-  saladin_forward_cut: EQUIPMENT_VRMA_CLIPS.slashToRight({ interruptibleAfter: .5, fallbackReason: VRMA_FALLBACK_REASONS.thrust })
+  saladin_combo_1: EQUIPMENT_VRMA_CLIPS.slashToLeft({ interruptibleAfter: .4, playbackRate: 1.55, alignEndWithAction: true, actionDurationSeconds: 22 / 60 }),
+  saladin_combo_2: EQUIPMENT_VRMA_CLIPS.slashToRight({ interruptibleAfter: .4, playbackRate: 1.55, alignEndWithAction: true, actionDurationSeconds: 22 / 60 }),
+  saladin_combo_3: EQUIPMENT_VRMA_CLIPS.slashUp({ interruptibleAfter: .44, playbackRate: 1.45, alignEndWithAction: true, actionDurationSeconds: 23 / 60 }),
+  saladin_combo_4: EQUIPMENT_VRMA_CLIPS.slashToLeft({ interruptibleAfter: .48, playbackRate: 1.45, alignEndWithAction: true, actionDurationSeconds: 31 / 60, fallbackReason: VRMA_FALLBACK_REASONS.slash }),
+  saladin_lunar_slash: EQUIPMENT_VRMA_CLIPS.slashToLeft({ interruptibleAfter: .58, playbackRate: 1.25, alignEndWithAction: true, actionDurationSeconds: 44 / 60, fallbackReason: VRMA_FALLBACK_REASONS.thrust }),
+  saladin_forward_cut: EQUIPMENT_VRMA_CLIPS.slashToRight({ interruptibleAfter: .5, playbackRate: 1.35, alignEndWithAction: true, actionDurationSeconds: 36 / 60, fallbackReason: VRMA_FALLBACK_REASONS.thrust })
 } satisfies VrmaMotionMap;
 
 export const motionController = {

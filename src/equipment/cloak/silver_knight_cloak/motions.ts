@@ -2,7 +2,7 @@ import { EQUIPMENT_VRMA_CLIPS, VRMA_FALLBACK_REASONS } from "../../vrma.ts";
 import type { ScriptMotionController, VrmaMotionMap } from "../../../shared/character-types.ts";
 
 export const vrmaMotions = {
-  silver_body_charge: EQUIPMENT_VRMA_CLIPS.slashToLeft({ interruptibleAfter: .55, fallbackReason: VRMA_FALLBACK_REASONS.thrust })
+  silver_body_charge: EQUIPMENT_VRMA_CLIPS.slashToLeft({ interruptibleAfter: .55, playbackRate: 1.2, alignEndWithAction: true, actionDurationSeconds: 54 / 60, fallbackReason: VRMA_FALLBACK_REASONS.thrust })
 } satisfies VrmaMotionMap;
 
 export const motionController = {

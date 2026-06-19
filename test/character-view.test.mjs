@@ -3,9 +3,10 @@ import { test } from "node:test";
 import * as THREE from "three";
 import { MODEL_CONTRACT, ProceduralCharacterView } from "../src/client/character-view.js";
 import { getAttackPhase } from "../src/client/script-motion-player.js";
-import { createInPlaceClip } from "../src/client/vrma-motion-player.js";
+import { calculateEndAlignedStartTime, createInPlaceClip } from "../src/client/vrma-motion-player.js";
 import { findMissingVrmaMotionIds, getVrmaMotionSet } from "../src/client/vrma-motion-registry.js";
 import { applyBattleCharacterRenderScale, BATTLE_CAMERA_TARGET_Y, BATTLE_CHARACTER_RENDER_SCALE, ChampionScene, createShowcaseEquipment, faceShowcaseCamera } from "../src/client/scene.js";
+import { COMMON_BAREHAND_COMBO } from "../src/characters/common.ts";
 
 const equipmentSets = {
   silver_knight: { cloak: "silver_knight_cloak", head: "silver_knight_helmet", armor: "silver_knight_armor", weapon: "silver_knight_sword" },
@@ -70,6 +71,26 @@ test("VRMロード後はVRMAモーションプレイヤーへ切り替える", (
   }
 });
 
+test("VRMの手Socketは武器の握り軸をHumanoid手ボーンへ合わせる", () => {
+  const view = new ProceduralCharacterView("silver_knight");
+  assert.equal(view.rig.getSocket("rightHandGrip").rotation.z, 0);
+  assert.equal(view.rig.getSocket("leftHandGrip").rotation.z, 0);
+
+  const bones = makeVrmBones();
+  const vrm = {
+    scene: new THREE.Group(),
+    humanoid: { getNormalizedBoneNode: (name) => bones[name] },
+    update() {}
+  };
+  view.installVrm(vrm);
+
+  assert.equal(view.rig.getSocket("rightHandGrip").parent, bones.rightHand);
+  assert.equal(view.rig.getSocket("leftHandGrip").parent, bones.leftHand);
+  assert.equal(view.rig.getSocket("rightHandGrip").rotation.z, -Math.PI / 2);
+  assert.equal(view.rig.getSocket("leftHandGrip").rotation.z, Math.PI / 2);
+  view.dispose();
+});
+
 test("Saladinを含むGameplay motionIdはVRMA registryへ登録されている", () => {
   assert.deepEqual(findMissingVrmaMotionIds(), []);
   const clips = getVrmaMotionSet().clips;
@@ -89,6 +110,53 @@ test("装備のmotions.tsがVRMA clipを選びregistryが収集する", async ()
   assert.equal(clips.silver_headbutt.url, "/assets/motions/combat/headbutt.vrma");
   assert.equal(clips.syal_windwall.url, "/assets/motions/combat/headbutt.vrma");
   assert.equal(clips.saladin_windwall.url, "/assets/motions/combat/headbutt.vrma");
+});
+
+test("slash系VRMAは速度を落としつつ各アクションの終端へ合わせる", async () => {
+  const { EQUIPMENT_REGISTRY } = await import("../src/equipment/registry.ts");
+  const slashDurations = {
+    "/assets/motions/combat/slash-to-left.vrma": 2,
+    "/assets/motions/combat/slash-to-right.vrma": 2.16666674613953,
+    "/assets/motions/combat/slash-up.vrma": 1.66666662693024
+  };
+
+  for (const registration of Object.values(EQUIPMENT_REGISTRY)) {
+    const attacks = [
+      ...(registration.definition.combo || []),
+      ...(registration.definition.holdAttack ? [registration.definition.holdAttack] : []),
+      registration.definition.skill
+    ];
+    const attackByMotionId = new Map(attacks.map((attack) => [attack.motionId, attack]));
+    for (const [motionId, clip] of Object.entries(registration.vrmaMotions || {})) {
+      if (!(clip.url in slashDurations)) continue;
+      const attack = attackByMotionId.get(motionId);
+      assert.ok(attack, `${motionId} should have an attack spec`);
+      const actionSeconds = (attack.startupFrames + attack.activeFrames + attack.recoveryFrames) / 60;
+      assert.equal(clip.alignEndWithAction, true, `${motionId} should align the VRMA end to the action end`);
+      assert.equal(clip.actionDurationSeconds, actionSeconds);
+      assert.ok(clip.playbackRate >= 1.2 && clip.playbackRate <= 1.55, `${motionId} should use a natural playback rate`);
+      assert.ok(calculateEndAlignedStartTime(slashDurations[clip.url], clip) > 0, `${motionId} should skip the VRMA opening`);
+    }
+  }
+});
+
+test("punch系VRMAは速度を落としつつ素手アクションの終端へ合わせる", () => {
+  const clips = getVrmaMotionSet().clips;
+  const punchDurations = {
+    barehand_1: 1.29166662693024,
+    barehand_2: 1,
+    barehand_3: 1
+  };
+
+  for (const attack of COMMON_BAREHAND_COMBO) {
+    const clip = clips[attack.motionId];
+    assert.ok(clip, `${attack.motionId} should have a VRMA clip`);
+    const actionSeconds = (attack.startupFrames + attack.activeFrames + attack.recoveryFrames) / 60;
+    assert.equal(clip.alignEndWithAction, true);
+    assert.equal(clip.actionDurationSeconds, actionSeconds);
+    assert.ok(clip.playbackRate >= 1.3 && clip.playbackRate <= 1.35);
+    assert.ok(calculateEndAlignedStartTime(punchDurations[attack.motionId], clip) > 0);
+  }
 });
 
 test("ダウンVRMAはゲーム上のDown時間内に倒れ切る速度で再生する", () => {
@@ -142,8 +210,8 @@ test("スクリプトモデルは装備を必要時だけSocketへ生成する",
   const silver = new ProceduralCharacterView("silver_knight");
   assert.equal(silver.equipment.size, 0);
   silver.setEquipment(fullEquipment("silver_knight"));
-  assert.equal(silver.equipment.get("armor").objects.length, 2);
-  assert.equal(silver.rig.getSocket("leftHandGrip").children.length, 1);
+  assert.equal(silver.equipment.get("armor").objects.length, 1);
+  assert.equal(silver.rig.getSocket("leftHandGrip").children.length, 0);
   assert.equal(silver.rig.getSocket("rightHandGrip").children.length, 1);
   silver.dispose();
 
@@ -302,6 +370,41 @@ test("攻撃判定表示はデバッグ有効時だけ表示される", () => {
   view.setCollisionDebug(false);
   view.update(snapshot, 1 / 60, 1);
   assert.equal(view.hitboxView.visible, false);
+  view.dispose();
+});
+
+test("防御中だけ青いシールドエフェクトを表示する", () => {
+  const view = new ProceduralCharacterView("silver_knight");
+  assert.equal(view.guardEffect.visible, false);
+  assert.equal(view.guardEffect.name, "guard-shield-effect");
+  assert.equal(view.guardEffect.children.length, 2);
+
+  view.update({ state: "Guard", facing: 1, worldY: 0 }, 1 / 60, .25);
+  assert.equal(view.guardEffect.visible, true);
+  assert.ok(view.guardEffect.children.every((object) => object.material.transparent));
+
+  view.update({ state: "GuardCounterWindow", facing: 1, worldY: 0 }, 1 / 60, .5);
+  assert.equal(view.guardEffect.visible, true);
+
+  view.update({ state: "Idle", facing: 1, worldY: 0 }, 1 / 60, .75);
+  assert.equal(view.guardEffect.visible, false);
+  view.dispose();
+});
+
+test("ダウンとスタン中だけ頭上の星エフェクトを表示する", () => {
+  const view = new ProceduralCharacterView("saladin");
+  assert.equal(view.disabledEffect.visible, false);
+  assert.equal(view.disabledEffect.name, "disabled-stars-effect");
+  assert.equal(view.disabledEffect.children.length, 3);
+  assert.ok(view.disabledEffect.position.y > 2);
+
+  for (const state of ["KneelDown", "Down", "Stunned"]) {
+    view.update({ state, facing: -1, worldY: 0 }, 1 / 60, 1);
+    assert.equal(view.disabledEffect.visible, true, `${state} should show disabled effect`);
+  }
+
+  view.update({ state: "Hitstun", facing: -1, worldY: 0 }, 1 / 60, 1.25);
+  assert.equal(view.disabledEffect.visible, false);
   view.dispose();
 });
 

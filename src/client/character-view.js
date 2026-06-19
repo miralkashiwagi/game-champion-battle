@@ -28,6 +28,10 @@ const SHARED_FALLBACK_MODEL = {
 };
 const MODEL_DISPLAY_SCALE = 1;
 const SCRIPT_MODEL_BASE_SCALE = .895;
+const VRM_RIGHT_HAND_GRIP_ROTATION = [0, 0, -Math.PI / 2];
+const VRM_LEFT_HAND_GRIP_ROTATION = [0, 0, Math.PI / 2];
+const GUARD_EFFECT_STATES = new Set(["Guard", "GuardCounterWindow"]);
+const DISABLED_EFFECT_STATES = new Set(["KneelDown", "Down", "Stunned"]);
 
 export const MODEL_CONTRACT = Object.freeze({
   renderer: "script",
@@ -150,8 +154,17 @@ export class ProceduralCharacterView {
       this.visual.motionController,
       resolveMotionController
     );
+    this.buildStateEffects();
     this.buildCollisionVisuals();
 
+  }
+
+  buildStateEffects() {
+    this.guardEffect = createGuardShieldEffect();
+    this.root.add(this.guardEffect);
+
+    this.disabledEffect = createDisabledStarsEffect();
+    this.root.add(this.disabledEffect);
   }
 
   buildCollisionVisuals() {
@@ -282,6 +295,31 @@ export class ProceduralCharacterView {
     this.hitboxView.visible = Boolean(this.collisionDebug && attacking);
     this.hitboxSweep.visible = !thrusting;
     this.hitboxThrust.visible = thrusting;
+    this.updateStateEffects(snapshot, elapsed);
+  }
+
+  updateStateEffects(snapshot, elapsed) {
+    const state = snapshot?.state;
+    const guarding = GUARD_EFFECT_STATES.has(state);
+    this.guardEffect.visible = guarding;
+    if (guarding) {
+      const pulse = .5 + Math.sin(elapsed * 9) * .5;
+      this.guardEffect.scale.setScalar(1 + pulse * .035);
+      this.guardEffect.rotation.y = Math.sin(elapsed * 5) * .08;
+      for (const object of this.guardEffect.children) {
+        if (object.material) object.material.opacity = object.userData.baseOpacity + pulse * object.userData.pulseOpacity;
+      }
+    }
+
+    const disabled = DISABLED_EFFECT_STATES.has(state);
+    this.disabledEffect.visible = disabled;
+    if (disabled) {
+      this.disabledEffect.rotation.y = elapsed * 3.8;
+      for (const [index, star] of this.disabledEffect.children.entries()) {
+        star.position.y = star.userData.baseY + Math.sin(elapsed * 5.5 + index * 1.7) * .035;
+        star.rotation.z = -this.disabledEffect.rotation.y + elapsed * 2 + index * .4;
+      }
+    }
   }
 
   dispose() {
@@ -410,16 +448,17 @@ function createVrmRig(vrm) {
     headAccessory: socket("head-accessory", bones.head, [0, .12, 0]),
     chestArmor: socket("chest-armor", bones.chest, [0, 0, .08]),
     back: socket("back", bones.chest, [0, 0, -.1]),
-    leftHandGrip: socket("left-hand-grip", vrm.humanoid.getNormalizedBoneNode("leftHand") || bones.leftUpperArm),
-    rightHandGrip: socket("right-hand-grip", vrm.humanoid.getNormalizedBoneNode("rightHand") || bones.rightUpperArm)
+    leftHandGrip: socket("left-hand-grip", vrm.humanoid.getNormalizedBoneNode("leftHand") || bones.leftUpperArm, [0, 0, 0], VRM_LEFT_HAND_GRIP_ROTATION),
+    rightHandGrip: socket("right-hand-grip", vrm.humanoid.getNormalizedBoneNode("rightHand") || bones.rightUpperArm, [0, 0, 0], VRM_RIGHT_HAND_GRIP_ROTATION)
   };
   return new ScriptRigAdapter(bones, sockets);
 }
 
-function socket(name, parent, position = [0, 0, 0]) {
+function socket(name, parent, position = [0, 0, 0], rotation = [0, 0, 0]) {
   const result = new THREE.Group();
   result.name = name;
   result.position.fromArray(position);
+  result.rotation.fromArray(rotation);
   parent.add(result);
   return result;
 }
@@ -489,6 +528,84 @@ function mesh(geometry, meshMaterial) {
   result.castShadow = true;
   result.receiveShadow = true;
   return result;
+}
+
+function createGuardShieldEffect() {
+  const group = new THREE.Group();
+  group.name = "guard-shield-effect";
+  group.position.set(0, 1.18, .22);
+  group.visible = false;
+
+  const shieldSurface = new THREE.Mesh(
+    new THREE.SphereGeometry(.92, 28, 14, Math.PI / 4, Math.PI / 2, .12, Math.PI - .24),
+    new THREE.MeshBasicMaterial({
+      color: 0x3aa8ff,
+      transparent: true,
+      opacity: .2,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+      blending: THREE.AdditiveBlending
+    })
+  );
+  shieldSurface.userData.baseOpacity = .18;
+  shieldSurface.userData.pulseOpacity = .08;
+  shieldSurface.renderOrder = 12;
+
+  const shieldRibs = new THREE.Mesh(
+    new THREE.SphereGeometry(.925, 10, 6, Math.PI / 4, Math.PI / 2, .12, Math.PI - .24),
+    new THREE.MeshBasicMaterial({
+      color: 0x9edcff,
+      transparent: true,
+      opacity: .32,
+      depthWrite: false,
+      wireframe: true,
+      blending: THREE.AdditiveBlending
+    })
+  );
+  shieldRibs.userData.baseOpacity = .28;
+  shieldRibs.userData.pulseOpacity = .12;
+  shieldRibs.renderOrder = 13;
+  group.add(shieldSurface, shieldRibs);
+  return group;
+}
+
+function createDisabledStarsEffect() {
+  const group = new THREE.Group();
+  group.name = "disabled-stars-effect";
+  group.position.set(0, 2.55, 0);
+  group.visible = false;
+  const starGeometry = createStarGeometry(.13, .055, 5);
+  const starMaterial = new THREE.MeshBasicMaterial({
+    color: 0xffe35a,
+    transparent: true,
+    opacity: .95,
+    depthWrite: false,
+    side: THREE.DoubleSide
+  });
+  for (let index = 0; index < 3; index += 1) {
+    const angle = index / 3 * Math.PI * 2;
+    const star = new THREE.Mesh(starGeometry, starMaterial.clone());
+    star.position.set(Math.cos(angle) * .34, index === 1 ? .08 : 0, Math.sin(angle) * .34);
+    star.rotation.y = Math.PI / 2 - angle;
+    star.userData.baseY = star.position.y;
+    star.renderOrder = 14;
+    group.add(star);
+  }
+  return group;
+}
+
+function createStarGeometry(outerRadius, innerRadius, points) {
+  const shape = new THREE.Shape();
+  for (let index = 0; index < points * 2; index += 1) {
+    const radius = index % 2 === 0 ? outerRadius : innerRadius;
+    const angle = Math.PI / 2 + index / (points * 2) * Math.PI * 2;
+    const x = Math.cos(angle) * radius;
+    const y = Math.sin(angle) * radius;
+    if (index === 0) shape.moveTo(x, y);
+    else shape.lineTo(x, y);
+  }
+  shape.closePath();
+  return new THREE.ShapeGeometry(shape);
 }
 
 function disposeGroup(group) {
