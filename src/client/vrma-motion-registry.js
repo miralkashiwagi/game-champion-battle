@@ -4,8 +4,8 @@ import { EQUIPMENT_REGISTRY } from "../equipment/registry.ts";
 const M = "/assets/motions";
 const fallbackDeathReason = "No dedicated death VRMA exists in the current repository; using knockdown as the visible fallback.";
 
-function clip(url, { loop = false, fadeIn = .12, fadeOut = .12, rootMotion = "inPlace", interruptibleAfter, fallbackReason } = {}) {
-  return { url, loop, fadeIn, fadeOut, layer: "base", rootMotion, interruptibleAfter, fallbackReason };
+function clip(url, { loop = false, fadeIn = .12, fadeOut = .12, rootMotion = "inPlace", interruptibleAfter, fallbackReason, playbackRate } = {}) {
+  return { url, loop, fadeIn, fadeOut, layer: "base", rootMotion, interruptibleAfter, fallbackReason, playbackRate };
 }
 
 export const VRMA_ASSET_URLS = Object.freeze([
@@ -43,11 +43,11 @@ const stateClips = {
   jumpLand: clip(`${M}/air/jump-end.vrma`, { rootMotion: "gameplay", interruptibleAfter: .2 }),
   guard: clip(`${M}/combat/block.vrma`, { loop: true, fadeIn: .08, fadeOut: .12 }),
   hit: clip(`${M}/reaction/hit.vrma`, { interruptibleAfter: .28 }),
-  kneel: clip(`${M}/reaction/crumple-stun.vrma`, { interruptibleAfter: .45 }),
+  kneel: clip(`${M}/reaction/crumple-stun.vrma`, { fadeIn: .06, interruptibleAfter: .55, playbackRate: 2 }),
   air: clip(`${M}/reaction/hit.vrma`, { interruptibleAfter: .28, fallbackReason: "No dedicated air-damaged VRMA exists; using hit reaction." }),
   stunned: clip(`${M}/reaction/crumple-stun.vrma`, { loop: true, fadeIn: .08, fadeOut: .16 }),
-  down: clip(`${M}/reaction/knockdown.vrma`, { interruptibleAfter: .5 }),
-  dead: clip(`${M}/reaction/knockdown.vrma`, { fadeOut: .3, fallbackReason: fallbackDeathReason }),
+  down: clip(`${M}/reaction/knockdown.vrma`, { interruptibleAfter: .68, playbackRate: 4 }),
+  dead: clip(`${M}/reaction/knockdown.vrma`, { fadeOut: .3, playbackRate: 4, fallbackReason: fallbackDeathReason }),
   getUp: clip(`${M}/reaction/get-up.vrma`, { interruptibleAfter: .45 })
 };
 

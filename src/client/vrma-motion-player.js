@@ -41,6 +41,7 @@ export class VrmaMotionPlayer {
       action.clampWhenFinished = !config.loop;
       action.enabled = true;
       action.setEffectiveWeight(config.weight ?? 1);
+      action.setEffectiveTimeScale(config.playbackRate ?? 1);
       this.actions.set(name, { action, config });
     } catch (error) {
       console.warn(`[VRMA] Failed to load ${name}: ${config.url}`, error);
@@ -60,6 +61,7 @@ export class VrmaMotionPlayer {
     next.action.reset();
     next.action.enabled = true;
     next.action.setEffectiveWeight(next.config.weight ?? 1);
+    next.action.setEffectiveTimeScale(next.config.playbackRate ?? 1);
     next.action.fadeIn(fadeSeconds);
     next.action.play();
     if (current && current.action !== next.action) current.action.fadeOut(fadeSeconds);
@@ -89,7 +91,25 @@ export class VrmaMotionPlayer {
 
 export function createInPlaceClip(clip, config = {}) {
   if (config.rootMotion === "clip") return clip;
-  const tracks = clip.tracks.filter((track) => !track.name.endsWith(".position"));
-  if (tracks.length === clip.tracks.length) return clip;
+  let changed = false;
+  const tracks = clip.tracks.flatMap((track) => {
+    if (!track.name.endsWith(".position")) return [track];
+    changed = true;
+    if (config.rootMotion === "none") return [];
+    return [createVerticalPoseTrack(track)];
+  });
+  if (!changed) return clip;
   return new THREE.AnimationClip(clip.name, clip.duration, tracks, clip.blendMode);
+}
+
+function createVerticalPoseTrack(track) {
+  if (!(track instanceof THREE.VectorKeyframeTrack)) return track;
+  const values = track.values.slice();
+  const baseX = values[0] ?? 0;
+  const baseZ = values[2] ?? 0;
+  for (let index = 0; index < values.length; index += 3) {
+    values[index] = baseX;
+    values[index + 2] = baseZ;
+  }
+  return new THREE.VectorKeyframeTrack(track.name, track.times.slice(), values, track.getInterpolation());
 }

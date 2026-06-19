@@ -91,17 +91,37 @@ test("装備のmotions.tsがVRMA clipを選びregistryが収集する", async ()
   assert.equal(clips.saladin_windwall.url, "/assets/motions/combat/headbutt.vrma");
 });
 
-test("VRMA inPlace再生ではposition trackを除去してその場モーションにする", () => {
+test("ダウンVRMAはゲーム上のDown時間内に倒れ切る速度で再生する", () => {
+  const clips = getVrmaMotionSet().clips;
+  assert.equal(clips.down.url, "/assets/motions/reaction/knockdown.vrma");
+  assert.ok(clips.down.playbackRate > 1);
+  assert.ok(clips.down.interruptibleAfter < .75);
+  assert.equal(clips.dead.playbackRate, clips.down.playbackRate);
+});
+
+test("ひざつきVRMAはKneelDown時間内に反応が見える速度で再生する", () => {
+  const clips = getVrmaMotionSet().clips;
+  assert.equal(clips.kneel.url, "/assets/motions/reaction/crumple-stun.vrma");
+  assert.ok(clips.kneel.fadeIn < .12);
+  assert.ok(clips.kneel.playbackRate > 1);
+});
+
+test("VRMA inPlace再生では水平root motionだけ抑え高さの姿勢を残す", () => {
   const source = new THREE.AnimationClip("walk", 1, [
-    new THREE.VectorKeyframeTrack("hips.position", [0, 1], [0, 0, 0, 0, 0, 1]),
+    new THREE.VectorKeyframeTrack("hips.position", [0, 1], [0, 0, 0, 3, -.4, 1]),
     new THREE.QuaternionKeyframeTrack("hips.quaternion", [0, 1], [0, 0, 0, 1, 0, .1, 0, .99]),
-    new THREE.VectorKeyframeTrack("leftFoot.position", [0, 1], [0, 0, 0, 0, 0, .2])
+    new THREE.VectorKeyframeTrack("leftFoot.position", [0, 1], [0, 0, 0, 0, -.12, .2])
   ]);
   const inPlace = createInPlaceClip(source, { rootMotion: "inPlace" });
-  assert.deepEqual(inPlace.tracks.map((track) => track.name), ["hips.quaternion"]);
+  assert.deepEqual(inPlace.tracks.map((track) => track.name), ["hips.position", "hips.quaternion", "leftFoot.position"]);
+  assertVectorValues(inPlace.tracks[0].values, [0, 0, 0, 0, -.4, 0]);
+  assertVectorValues(inPlace.tracks[2].values, [0, 0, 0, 0, -.12, 0]);
 
   const clipRootMotion = createInPlaceClip(source, { rootMotion: "clip" });
   assert.equal(clipRootMotion.tracks.length, 3);
+
+  const noRootMotion = createInPlaceClip(source, { rootMotion: "none" });
+  assert.deepEqual(noRootMotion.tracks.map((track) => track.name), ["hips.quaternion"]);
 });
 
 test("装着用とフィールド用GLBはURLだけを共有し変換を分離する", async () => {
@@ -498,4 +518,11 @@ function makeVrmBones() {
   bones.leftLowerLeg.add(bones.leftFoot);
   bones.rightLowerLeg.add(bones.rightFoot);
   return bones;
+}
+
+function assertVectorValues(actual, expected) {
+  assert.equal(actual.length, expected.length);
+  for (let index = 0; index < expected.length; index += 1) {
+    assert.ok(Math.abs(actual[index] - expected[index]) < 1e-6, `index ${index}: ${actual[index]} !== ${expected[index]}`);
+  }
 }

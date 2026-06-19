@@ -4,8 +4,8 @@ import type { ScriptMotionBones, ScriptMotionController, VrmaMotionMap } from ".
 export const vrmaMotions = {
   silver_combo_1: EQUIPMENT_VRMA_CLIPS.slashToLeft({ interruptibleAfter: .42 }),
   silver_combo_2: EQUIPMENT_VRMA_CLIPS.slashToRight({ interruptibleAfter: .42 }),
-  silver_combo_3: EQUIPMENT_VRMA_CLIPS.slashUp({ interruptibleAfter: .45 }),
-  silver_combo_4: EQUIPMENT_VRMA_CLIPS.slashToLeft({ interruptibleAfter: .48, fallbackReason: VRMA_FALLBACK_REASONS.slash }),
+  silver_combo_3: EQUIPMENT_VRMA_CLIPS.slashToLeft({ interruptibleAfter: .45 }),
+  silver_combo_4: EQUIPMENT_VRMA_CLIPS.slashUp({ interruptibleAfter: .48, fallbackReason: VRMA_FALLBACK_REASONS.slash }),
   silver_slash: EQUIPMENT_VRMA_CLIPS.slashToLeft({ interruptibleAfter: .58, fallbackReason: VRMA_FALLBACK_REASONS.slash }),
   silver_thrust: EQUIPMENT_VRMA_CLIPS.slashToRight({ interruptibleAfter: .52, fallbackReason: VRMA_FALLBACK_REASONS.thrust })
 } satisfies VrmaMotionMap;
