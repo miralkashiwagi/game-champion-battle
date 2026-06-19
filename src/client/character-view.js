@@ -6,6 +6,8 @@ import { CHARACTER_REGISTRY } from "../characters/registry.ts";
 import { EQUIPMENT_REGISTRY } from "../equipment/registry.ts";
 import { ScriptRigAdapter } from "./script-rig-adapter.js";
 import { ScriptMotionPlayer } from "./script-motion-player.js";
+import { VrmaCharacterMotionPlayer } from "./vrma-character-motion-player.js";
+import { getVrmaMotionSet } from "./vrma-motion-registry.js";
 
 const EQUIPMENT_SLOTS = ["cloak", "head", "armor", "weapon"];
 const SLOT_SOCKETS = {
@@ -274,7 +276,7 @@ export class ProceduralCharacterView {
       this.root.rotation.y = snapshot.facing === -1 ? -Math.PI / 2 : Math.PI / 2;
     }
     this.motionPlayer.update(snapshot, delta, elapsed);
-    this.vrm?.update(delta);
+    if (this.vrm && this.motionPlayer?.kind !== "vrma") this.vrm.update(delta);
     const attacking = snapshot?.state === "AttackActive" && snapshot?.activeActionId;
     const thrusting = /thrust|charge|headbutt|forward_cut|guard_counter|lunar/.test(snapshot?.activeActionId || "");
     this.hitboxView.visible = Boolean(this.collisionDebug && attacking);
@@ -284,6 +286,7 @@ export class ProceduralCharacterView {
 
   dispose() {
     this.disposed = true;
+    this.motionPlayer?.dispose?.();
     for (const slot of [...this.equipment.keys()]) this.removeEquipment(slot);
     disposeGroup(this.root);
     this.root.removeFromParent();
@@ -325,13 +328,8 @@ export class ProceduralCharacterView {
     this.visualRoot = visualRoot;
     this.rig = rig;
     this.vrm = vrm;
-    this.motionPlayer = new ScriptMotionPlayer(
-      rig,
-      visualRoot,
-      collectAttackSpecs(),
-      this.visual.motionController,
-      resolveMotionController
-    );
+    this.motionPlayer?.dispose?.();
+    this.motionPlayer = new VrmaCharacterMotionPlayer(vrm, getVrmaMotionSet());
     fallbackRoot.removeFromParent();
     disposeGroup(fallbackRoot);
     this.root.userData.modelType = "vrm";
