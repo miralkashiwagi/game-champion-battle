@@ -31,7 +31,7 @@ const SCRIPT_MODEL_BASE_SCALE = .895;
 const VRM_RIGHT_HAND_GRIP_ROTATION = [0, 0, -Math.PI / 2];
 const VRM_LEFT_HAND_GRIP_ROTATION = [0, 0, Math.PI / 2];
 const GUARD_EFFECT_STATES = new Set(["Guard", "GuardCounterWindow"]);
-const DISABLED_EFFECT_STATES = new Set(["KneelDown", "Down", "Stunned"]);
+const DISABLED_EFFECT_STATES = new Set(["Stunned"]);
 
 export const MODEL_CONTRACT = Object.freeze({
   renderer: "script",

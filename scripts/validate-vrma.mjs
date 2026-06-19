@@ -22,6 +22,7 @@ const assets = [
   "public/assets/motions/common/turn.vrma",
   "public/assets/motions/common/walk.vrma",
   "public/assets/motions/reaction/crumple-stun.vrma",
+  "public/assets/motions/reaction/dizzy.vrma",
   "public/assets/motions/reaction/get-up.vrma",
   "public/assets/motions/reaction/hit.vrma",
   "public/assets/motions/reaction/knockdown.vrma"

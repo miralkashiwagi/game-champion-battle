@@ -25,6 +25,7 @@ export const VRMA_ASSET_URLS = Object.freeze([
   `${M}/common/turn.vrma`,
   `${M}/common/walk.vrma`,
   `${M}/reaction/crumple-stun.vrma`,
+  `${M}/reaction/dizzy.vrma`,
   `${M}/reaction/get-up.vrma`,
   `${M}/reaction/hit.vrma`,
   `${M}/reaction/knockdown.vrma`
@@ -45,7 +46,7 @@ const stateClips = {
   hit: clip(`${M}/reaction/hit.vrma`, { interruptibleAfter: .28 }),
   kneel: clip(`${M}/reaction/crumple-stun.vrma`, { fadeIn: .06, interruptibleAfter: .55, playbackRate: 2 }),
   air: clip(`${M}/reaction/hit.vrma`, { interruptibleAfter: .28, fallbackReason: "No dedicated air-damaged VRMA exists; using hit reaction." }),
-  stunned: clip(`${M}/reaction/crumple-stun.vrma`, { loop: true, fadeIn: .08, fadeOut: .16 }),
+  stunned: clip(`${M}/reaction/dizzy.vrma`, { loop: true, fadeIn: .08, fadeOut: .16 }),
   down: clip(`${M}/reaction/knockdown.vrma`, { interruptibleAfter: .68, playbackRate: 4 }),
   dead: clip(`${M}/reaction/knockdown.vrma`, { fadeOut: .3, playbackRate: 4, fallbackReason: fallbackDeathReason }),
   getUp: clip(`${M}/reaction/get-up.vrma`, { interruptibleAfter: .45 })
