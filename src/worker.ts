@@ -22,6 +22,36 @@ export default {
       return Response.json({ roomId, playerId, cp, characterId, wsPath: `/ws/matchmaker/${roomId}?${query}` });
     }
 
+    if (url.pathname === "/api/practice") {
+      const playerId = url.searchParams.get("playerId") ?? crypto.randomUUID();
+      const cp = clampNumber(Number(url.searchParams.get("cp") ?? 1000), 0, 9999);
+      const characterId = normalizeCharacterId(url.searchParams.get("characterId"));
+      const matchId = crypto.randomUUID();
+      const matchStub = env.MATCH_OBJECT.get(env.MATCH_OBJECT.idFromName(matchId));
+      const response = await matchStub.fetch(new Request(`https://internal/match/${matchId}/init`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          matchId,
+          mode: "practice",
+          cpuSide: "p2",
+          players: [
+            { playerId, cp, characterId },
+            { playerId: `cpu:${matchId}`, cp, characterId }
+          ]
+        })
+      }));
+      if (!response.ok) return new Response("Failed to initialize practice match", { status: 500 });
+      return Response.json({
+        matchId,
+        playerId,
+        cp,
+        characterId,
+        mode: "practice",
+        wsPath: `/ws/match/${matchId}?playerId=${encodeURIComponent(playerId)}`
+      });
+    }
+
     if (url.pathname.startsWith("/ws/matchmaker/")) {
       const roomId = decodeURIComponent(url.pathname.slice("/ws/matchmaker/".length)) || "ranked-global-v1";
       const id = env.MATCHMAKER_OBJECT.idFromName(roomId);

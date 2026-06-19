@@ -34,6 +34,7 @@ const state = {
   pendingCharacterId: normalizeCharacterId(localStorage.getItem("cb.characterId")),
   ws: null,
   roomId: null,
+  matchMode: "online",
   matchSearch: null,
   cpAppliedRoundKey: null,
   resultPreviousCp: null,
@@ -156,6 +157,7 @@ function renderScreen() {
           <div class="divider"></div>
           ${state.notice ? `<p class="status">${state.notice}</p>` : ""}
           <button class="button primary" data-action="match">マッチング開始</button>
+          <button class="button" data-action="practice">練習開始</button>
           <button class="button" data-action="select">キャラ変更</button>
           <button class="button ghost" data-action="detail">スキル確認</button>
           <p class="help-line">A / D 移動・2回でダッシュ　W ジャンプ　J 攻撃　K ガード</p>
@@ -239,19 +241,20 @@ function renderScreen() {
 
   if (state.screen === "matching") {
     const character = characters[state.characterId];
+    const practice = state.matchMode === "practice";
     screen.className = "screen-layer matching-screen";
     screen.innerHTML = `
       <section class="panel matching-card">
-        <p class="eyebrow">ONLINE MATCHMAKING</p>
-        <h2>マッチング中...</h2>
+        <p class="eyebrow">${practice ? "PRACTICE MODE" : "ONLINE MATCHMAKING"}</p>
+        <h2>${practice ? "練習準備中..." : "マッチング中..."}</h2>
         <div class="matching-dots"><i></i><i></i><i></i></div>
         <div class="match-profile">
           <div><span class="muted small">現在CP</span><div class="cp-number">${state.cp}</div></div>
           <div class="divider" style="height:72px"></div>
           <div><span class="muted small">登録キャラクター</span><h3>${character.name}</h3></div>
         </div>
-        <p class="status ${online ? "online" : ""}">${online ? `接続状態 : 良好 / ${state.roomId || "検索中"}` : "対戦相手を検索しています"}</p>
-        ${state.matchSearch ? `<p class="muted">検索範囲 CP ${state.matchSearch.minCp} ～ ${state.matchSearch.maxCp}</p>` : ""}
+        <p class="status ${online ? "online" : ""}">${practice ? "CPU戦を開始しています" : online ? `接続状態 : 良好 / ${state.roomId || "検索中"}` : "対戦相手を検索しています"}</p>
+        ${!practice && state.matchSearch ? `<p class="muted">検索範囲 CP ${state.matchSearch.minCp} ～ ${state.matchSearch.maxCp}</p>` : ""}
         <button class="button danger" data-action="cancel">キャンセル</button>
       </section>`;
     return;
@@ -266,6 +269,7 @@ function renderScreen() {
 
   if (state.screen === "result") {
     const result = state.snapshot?.result;
+    const practice = state.matchMode === "practice";
     const delta = result && state.localSide ? result.cpDelta[state.localSide] : 0;
     const outcome = !result || result.winner === "draw" ? "DRAW" : result.winner === state.localSide ? "WIN" : "LOSE";
     const before = state.resultPreviousCp ?? state.cp - delta;
@@ -276,10 +280,10 @@ function renderScreen() {
       <section class="panel result-panel">
         <p>${outcome === "WIN" ? "勝利！" : outcome === "LOSE" ? "敗北" : "引き分け"}　<span class="muted">${reasonLabels[result?.reason] || "対戦終了"}</span></p>
         <div class="divider"></div>
-        <div class="cp-change"><span>${before}</span><span>▶</span><strong>${state.cp}</strong><span class="cp-delta ${delta >= 0 ? "plus" : "minus"}">(${delta > 0 ? "+" : ""}${delta})</span></div>
-        <p class="status ${opponentRequested ? "online" : ""}" data-rematch-status>${rematchText}</p>
+        ${practice ? `<p class="status">練習モードのためCPは変動しません</p>` : `<div class="cp-change"><span>${before}</span><span>▶</span><strong>${state.cp}</strong><span class="cp-delta ${delta >= 0 ? "plus" : "minus"}">(${delta > 0 ? "+" : ""}${delta})</span></div>
+        <p class="status ${opponentRequested ? "online" : ""}" data-rematch-status>${rematchText}</p>`}
         <div class="result-actions">
-          <button class="button primary" data-action="match" ${state.rematchRequested ? "disabled" : ""}>${state.rematchAvailable ? "再戦する" : "新しい対戦相手を探す"}</button>
+          ${practice ? `<button class="button primary" data-action="practice">もう一度</button>` : `<button class="button primary" data-action="match" ${state.rematchRequested ? "disabled" : ""}>${state.rematchAvailable ? "再戦する" : "新しい対戦相手を探す"}</button>`}
           <button class="button" data-action="lobby">ロビーに戻る</button>
           <button class="button ghost" data-action="title">タイトルに戻る</button>
         </div>
@@ -316,6 +320,7 @@ screen.addEventListener("click", (event) => {
     if (state.screen === "result" && state.rematchAvailable && state.ws?.readyState === WebSocket.OPEN) requestRematch();
     else startMatch();
   }
+  if (action === "practice") startPractice();
   if (action === "cancel") {
     state.ws?.close();
     state.ws = null;
@@ -329,6 +334,7 @@ function leaveMatch(nextScreen) {
   if (ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: "client.leave" }));
   ws?.close();
   state.roomId = null;
+  state.matchMode = "online";
   state.snapshot = null;
   state.matchSearch = null;
   state.localSide = null;
@@ -341,6 +347,7 @@ async function startMatch() {
   const previousSocket = state.ws;
   state.ws = null;
   previousSocket?.close();
+  state.matchMode = "online";
   state.snapshot = null;
   state.matchSearch = null;
   state.resultPreviousCp = null;
@@ -359,6 +366,35 @@ async function startMatch() {
   } catch (error) {
     console.error(error);
     state.ws = null;
+    setScreen("lobby");
+  }
+}
+
+async function startPractice() {
+  const previousSocket = state.ws;
+  state.ws = null;
+  previousSocket?.close();
+  state.matchMode = "practice";
+  state.snapshot = null;
+  state.matchSearch = null;
+  state.resultPreviousCp = null;
+  state.rematchDeadline = null;
+  state.rematchRequestedPlayerIds = [];
+  state.rematchRequested = false;
+  state.rematchAvailable = false;
+  state.notice = "";
+  setScreen("matching");
+  try {
+    const response = await fetch(`/api/practice?playerId=${encodeURIComponent(state.playerId)}&cp=${state.cp}&characterId=${state.characterId}`);
+    if (!response.ok) throw new Error(`Practice request failed: ${response.status}`);
+    const match = await response.json();
+    state.roomId = match.matchId;
+    state.matchMode = match.mode || "practice";
+    connectSocket(match.wsPath, "match");
+  } catch (error) {
+    console.error(error);
+    state.ws = null;
+    state.matchMode = "online";
     setScreen("lobby");
   }
 }
@@ -396,6 +432,7 @@ function handleServerMessage(message, ws) {
     state.ws = null;
     ws.close();
     state.roomId = message.matchId;
+    state.matchMode = "online";
     state.matchSearch = null;
     state.rematchRequested = false;
     state.rematchAvailable = true;
@@ -423,6 +460,7 @@ function handleServerMessage(message, ws) {
   if (message.type !== "server.snapshot") return;
   const previousRoundId = state.snapshot?.roundId;
   state.snapshot = message;
+  if (message.mode) state.matchMode = message.mode;
   if (message.localSide) state.localSide = message.localSide;
   if (message.phase === "playing") {
     if (previousRoundId !== message.roundId) {
@@ -449,6 +487,7 @@ function requestRematch() {
 }
 
 function applyCpDelta(result, matchId, roundId) {
+  if (state.matchMode === "practice") return;
   const roundKey = `${matchId || state.roomId}:${roundId || 1}`;
   if (!result || !state.localSide || state.cpAppliedRoundKey === roundKey) return;
   state.cpAppliedRoundKey = roundKey;

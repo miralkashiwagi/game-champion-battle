@@ -1,15 +1,17 @@
 import { MatchSimulation } from "./game/simulation.ts";
 import { REMATCH_WINDOW_MS, SNAPSHOT_EVERY_TICKS, TICK_MS } from "./shared/constants.ts";
-import type { ClientMessage, Env, MatchPlayer, MatchSnapshot, PlayerSide, ServerMessage } from "./shared/types.ts";
+import type { ClientMessage, Env, InputState, MatchMode, MatchPlayer, MatchSnapshot, PlayerSide, ServerMessage } from "./shared/types.ts";
 
 interface MatchConfig {
   matchId: string;
-  matchmakerId: string;
+  matchmakerId?: string;
+  mode: MatchMode;
+  cpuSide?: PlayerSide;
   players: MatchPlayer[];
 }
 
 interface MatchMeta {
-  phase: "playing" | "rematch_pending" | "released";
+  phase: "playing" | "rematch_pending" | "finished" | "released";
   roundId: number;
   deadline?: number;
   requestedPlayerIds: string[];
@@ -19,7 +21,9 @@ interface MatchAttachment {
   playerId: string;
 }
 
-interface InitRequest extends MatchConfig {}
+interface InitRequest extends Omit<MatchConfig, "mode"> {
+  mode?: MatchMode;
+}
 
 interface Assignment {
   playerId: string;
@@ -53,7 +57,8 @@ export class MatchDurableObject {
 
     await this.loadState();
     const playerId = url.searchParams.get("playerId");
-    if (!playerId || !this.config?.players.some((player) => player.playerId === playerId)) {
+    const side = this.sideFor(playerId ?? undefined);
+    if (!playerId || !side || side === this.config?.cpuSide) {
       return new Response("Unknown player", { status: 403 });
     }
 
@@ -90,7 +95,7 @@ export class MatchDurableObject {
       if (side) this.simulation?.setInput(side, message.input);
       return;
     }
-    if (message.type === "client.rematch" && this.meta.phase === "rematch_pending") {
+    if (message.type === "client.rematch" && this.meta.phase === "rematch_pending" && this.config?.mode !== "practice") {
       await this.requestRematch(playerId);
       return;
     }
@@ -112,15 +117,18 @@ export class MatchDurableObject {
     }
   }
 
-  private async initialize(config: MatchConfig): Promise<void> {
-    this.config = config;
+  private async initialize(config: InitRequest): Promise<void> {
+    this.config = { ...config, mode: config.mode ?? "online" };
     this.meta = { phase: "playing", roundId: 1, requestedPlayerIds: [] };
     this.resetSimulation();
     await this.persistState();
   }
 
   private async loadState(): Promise<void> {
-    if (!this.config) this.config = await this.state.storage.get<MatchConfig>("config");
+    if (!this.config) {
+      const config = await this.state.storage.get<InitRequest>("config");
+      if (config) this.config = { ...config, mode: config.mode ?? "online" };
+    }
     if (!this.meta) this.meta = await this.state.storage.get<MatchMeta>("meta");
     if (!this.simulation && this.config && this.meta?.phase === "playing") this.resetSimulation();
   }
@@ -134,7 +142,8 @@ export class MatchDurableObject {
   }
 
   private startLoopIfReady(): void {
-    if (this.interval || this.meta?.phase !== "playing" || this.connectedPlayerIds().size < 2) return;
+    const requiredConnections = this.config?.mode === "practice" ? 1 : 2;
+    if (this.interval || this.meta?.phase !== "playing" || this.connectedHumanPlayerIds().size < requiredConnections) return;
     this.interval = setInterval(() => void this.advanceFrame(), TICK_MS);
   }
 
@@ -142,6 +151,9 @@ export class MatchDurableObject {
     if (this.advancing || this.meta?.phase !== "playing" || !this.simulation) return;
     this.advancing = true;
     try {
+      if (this.config?.mode === "practice" && this.config.cpuSide) {
+        this.simulation.setInput(this.config.cpuSide, neutralInput(this.simulation.frame + 1));
+      }
       this.simulation.tick();
       if (this.simulation.frame % SNAPSHOT_EVERY_TICKS === 0 || this.simulation.phase === "finished") {
         this.broadcastSnapshot();
@@ -157,6 +169,11 @@ export class MatchDurableObject {
     if (!this.meta || this.meta.phase !== "playing" || !this.simulation?.result || !this.config) return;
     this.stopLoop();
     const result = this.simulation.result;
+    if (this.config.mode === "practice") {
+      this.meta = { phase: "finished", roundId: this.meta.roundId, requestedPlayerIds: [] };
+      await this.persistState();
+      return;
+    }
     this.config.players = this.config.players.map((player, index) => {
       const side: PlayerSide = index === 0 ? "p1" : "p2";
       return { ...player, cp: Math.max(0, player.cp + result.cpDelta[side]) };
@@ -176,19 +193,19 @@ export class MatchDurableObject {
   }
 
   private async requestRematch(playerId: string): Promise<void> {
-    if (!this.meta || !this.config || this.meta.requestedPlayerIds.includes(playerId)) return;
+    if (!this.meta || !this.config || this.config.mode === "practice" || this.meta.requestedPlayerIds.includes(playerId)) return;
     this.meta.requestedPlayerIds.push(playerId);
     await this.state.storage.put("meta", this.meta);
     this.broadcastRematchStatus();
     if (this.config.players.every((player) => this.meta?.requestedPlayerIds.includes(player.playerId))) {
       await this.startRematch();
-    } else if (this.config.players.some((player) => !this.connectedPlayerIds().has(player.playerId))) {
+    } else if (this.config.players.some((player) => !this.connectedHumanPlayerIds().has(player.playerId))) {
       await this.releaseMatch();
     }
   }
 
   private async startRematch(): Promise<void> {
-    if (!this.meta || !this.config || this.meta.phase !== "rematch_pending") return;
+    if (!this.meta || !this.config || this.config.mode === "practice" || this.meta.phase !== "rematch_pending") return;
     await this.state.storage.deleteAlarm();
     await this.notifyMatchmaker("rematch-started", { matchId: this.config.matchId });
     this.meta = { phase: "playing", roundId: this.meta.roundId + 1, requestedPlayerIds: [] };
@@ -199,7 +216,7 @@ export class MatchDurableObject {
   }
 
   private async handleResultDeparture(playerId: string): Promise<void> {
-    if (this.meta?.phase !== "rematch_pending") return;
+    if (this.config?.mode === "practice" || this.meta?.phase !== "rematch_pending") return;
     const otherRequested = this.meta.requestedPlayerIds.some((id) => id !== playerId);
     if (otherRequested || this.meta.requestedPlayerIds.includes(playerId)) await this.releaseMatch();
   }
@@ -223,7 +240,7 @@ export class MatchDurableObject {
   }
 
   private async releaseMatch(): Promise<void> {
-    if (!this.meta || !this.config || this.meta.phase !== "rematch_pending") return;
+    if (!this.meta || !this.config || this.config.mode === "practice" || this.meta.phase !== "rematch_pending") return;
     this.meta.phase = "released";
     await this.persistState();
     await this.state.storage.deleteAlarm();
@@ -257,6 +274,7 @@ export class MatchDurableObject {
       fieldItems: []
     };
     if (this.config) snapshot.matchId = this.config.matchId;
+    if (this.config) snapshot.mode = this.config.mode;
     if (this.meta) snapshot.roundId = this.meta.roundId;
     return snapshot;
   }
@@ -288,7 +306,7 @@ export class MatchDurableObject {
   }
 
   private async notifyMatchmaker(path: string, body: unknown): Promise<Response> {
-    if (!this.config) throw new Error("Match is not initialized");
+    if (!this.config?.matchmakerId) throw new Error("Matchmaker is not available");
     const stub = this.env.MATCHMAKER_OBJECT.get(this.env.MATCHMAKER_OBJECT.idFromString(this.config.matchmakerId));
     return stub.fetch(new Request(`https://internal/matchmaker/${path}`, {
       method: "POST",
@@ -308,7 +326,7 @@ export class MatchDurableObject {
     return index === 0 ? "p1" : index === 1 ? "p2" : undefined;
   }
 
-  private connectedPlayerIds(): Set<string> {
+  private connectedHumanPlayerIds(): Set<string> {
     return new Set(this.state.getWebSockets().map((socket) => attachmentOf(socket)?.playerId).filter((id): id is string => Boolean(id)));
   }
 
@@ -335,4 +353,18 @@ export class MatchDurableObject {
 
 function attachmentOf(socket: WebSocket): MatchAttachment | undefined {
   return socket.deserializeAttachment() as MatchAttachment | undefined;
+}
+
+function neutralInput(frame: number): InputState {
+  return {
+    frame,
+    left: false,
+    right: false,
+    up: false,
+    down: false,
+    attack: false,
+    guard: false,
+    pickup: false,
+    skills: {}
+  };
 }

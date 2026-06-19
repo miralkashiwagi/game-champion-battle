@@ -5,6 +5,7 @@ import type { EquipmentSlot as CharacterEquipmentSlot } from "./character-types.
 export type CharacterId = RegisteredCharacterId;
 export type EquipmentId = RegisteredEquipmentId;
 export type PlayerSide = "p1" | "p2";
+export type MatchMode = "online" | "practice";
 export type EquipmentSlot = CharacterEquipmentSlot;
 export type Facing = -1 | 1;
 export type MatchPhase = "waiting" | "countdown" | "playing" | "finished";
@@ -117,6 +118,7 @@ export interface MatchSnapshot {
   timeRemainingMs: number;
   players: PlayerSnapshot[];
   fieldItems: FieldItem[];
+  mode?: MatchMode;
   matchId?: string;
   roundId?: number;
   localSide?: PlayerSide;
