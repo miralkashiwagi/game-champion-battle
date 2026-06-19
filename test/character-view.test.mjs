@@ -143,6 +143,12 @@ test("ローカルプレイヤーの移動描画だけ短時間予測する", ()
 
   assert.ok(scene.predictedLocalPlayerX(player) > player.position.x);
 
+  scene.snapshotReceivedAt = performance.now() - 100;
+  const movePredictedX = scene.predictedLocalPlayerX(player);
+  scene.snapshotReceivedAt = performance.now() - 100;
+  const dashPredictedX = scene.predictedLocalPlayerX({ ...player, state: "Dash" });
+  assert.ok(dashPredictedX > movePredictedX);
+
   const airborne = { ...player, state: "Jump", velocity: { x: -4.1, y: -5 } };
   assert.ok(scene.predictedLocalPlayerX(airborne) < airborne.position.x);
 

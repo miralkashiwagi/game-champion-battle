@@ -41,6 +41,8 @@ interface ActiveAttack {
   hitsDone: number;
 }
 
+type MoveAxis = -1 | 0 | 1;
+
 interface PlayerRuntime extends PlayerSnapshot {
   latestInput: InputState;
   previousInput: InputState;
@@ -49,9 +51,13 @@ interface PlayerRuntime extends PlayerSnapshot {
   invulnerableUntilFrame: number;
   attackHeldFrames: number;
   attackHoldConsumed: boolean;
+  lastLeftTapFrame: number;
+  lastRightTapFrame: number;
+  dashDirection: MoveAxis;
 }
 
 const HOLD_ATTACK_FRAMES = Math.round(TICK_RATE * 0.4);
+const DASH_TAP_WINDOW_FRAMES = Math.round(TICK_RATE * 0.25);
 
 export class MatchSimulation {
   frame = 0;
@@ -89,7 +95,10 @@ export class MatchSimulation {
       activeAttack: null,
       invulnerableUntilFrame: 0,
       attackHeldFrames: 0,
-      attackHoldConsumed: false
+      attackHoldConsumed: false,
+      lastLeftTapFrame: Number.NEGATIVE_INFINITY,
+      lastRightTapFrame: Number.NEGATIVE_INFINITY,
+      dashDirection: 0
     });
     this.push("joined", `${side} joined as ${CHARACTER_SPECS[characterId].ui.name}`);
     if (this.players.size === 2) {
@@ -231,8 +240,8 @@ export class MatchSimulation {
       }
 
       if (!player.activeAttack && player.state !== "Guard") {
-        const axis = Number(input.right) - Number(input.left);
-        const dashing = input.down && axis !== 0 && player.position.y >= GROUND_Y;
+        const axis = inputAxis(input);
+        const dashing = this.updateDashDirection(player, axis, inputAxis(player.previousInput)) !== 0 && player.position.y >= GROUND_Y;
         player.velocity.x = axis * (dashing ? DASH_SPEED : MOVE_SPEED);
         if (axis !== 0) {
           player.facing = axis > 0 ? 1 : -1;
@@ -464,8 +473,29 @@ export class MatchSimulation {
   }
 
   private faceOpponents(p1: PlayerRuntime, p2: PlayerRuntime): void {
-    if (!p1.activeAttack && p1.state !== "Guard") p1.facing = p2.position.x >= p1.position.x ? 1 : -1;
-    if (!p2.activeAttack && p2.state !== "Guard") p2.facing = p1.position.x >= p2.position.x ? 1 : -1;
+    if (this.canAutoFaceOpponent(p1)) p1.facing = p2.position.x >= p1.position.x ? 1 : -1;
+    if (this.canAutoFaceOpponent(p2)) p2.facing = p1.position.x >= p2.position.x ? 1 : -1;
+  }
+
+  private canAutoFaceOpponent(player: PlayerRuntime): boolean {
+    if (player.activeAttack || player.state === "Guard") return false;
+    return inputAxis(player.latestInput) === 0;
+  }
+
+  private updateDashDirection(player: PlayerRuntime, axis: MoveAxis, previousAxis: MoveAxis): MoveAxis {
+    if (axis === 0) {
+      player.dashDirection = 0;
+      return 0;
+    }
+
+    if (axis !== previousAxis) {
+      const lastTapFrame = axis === 1 ? player.lastRightTapFrame : player.lastLeftTapFrame;
+      if (axis === 1) player.lastRightTapFrame = this.frame;
+      else player.lastLeftTapFrame = this.frame;
+      player.dashDirection = this.frame - lastTapFrame <= DASH_TAP_WINDOW_FRAMES ? axis : 0;
+    }
+
+    return player.dashDirection === axis ? axis : 0;
   }
 
   private checkFinish(): void {
@@ -547,4 +577,8 @@ function collisionHalfWidth(characterId: CharacterId): number {
 
 function attackRange(spec: AttackSpec): number {
   return spec.range * BATTLE_COLLISION_SCALE;
+}
+
+function inputAxis(input: InputState): MoveAxis {
+  return (Number(input.right) - Number(input.left)) as MoveAxis;
 }

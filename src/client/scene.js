@@ -432,7 +432,7 @@ export class ChampionScene {
     if (!this.snapshotReceivedAt || !canPredictLocalMovement(player)) return player.position.x;
     const input = this.localInputProvider?.();
     const inputAxis = input ? Number(input.right) - Number(input.left) : Math.sign(player.velocity?.x || 0);
-    const velocityX = player.state === "Jump" ? (player.velocity?.x || 0) : inputAxis * (input?.down ? DASH_SPEED : MOVE_SPEED);
+    const velocityX = player.state === "Jump" ? (player.velocity?.x || 0) : inputAxis * (player.state === "Dash" ? DASH_SPEED : MOVE_SPEED);
     if (!velocityX) return player.position.x;
     const elapsedMs = Math.min(LOCAL_PREDICTION_MAX_MS, Math.max(0, performance.now() - this.snapshotReceivedAt));
     const predicted = player.position.x + velocityX * (elapsedMs / TICK_MS);

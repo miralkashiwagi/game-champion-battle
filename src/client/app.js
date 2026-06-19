@@ -158,7 +158,7 @@ function renderScreen() {
           <button class="button primary" data-action="match">マッチング開始</button>
           <button class="button" data-action="select">キャラ変更</button>
           <button class="button ghost" data-action="detail">スキル確認</button>
-          <p class="help-line">A / D 移動　W ジャンプ　J 攻撃　K ガード</p>
+          <p class="help-line">A / D 移動・2回でダッシュ　W ジャンプ　J 攻撃　K ガード</p>
         </section>
       </div>`;
     return;
@@ -516,7 +516,7 @@ function renderBattleHud() {
     </div>
     <div class="hud-bottom">
       <div class="equipment-bar">${equipmentHud(local)}</div>
-      <div class="control-box"><div><b>移動</b> W A S D</div><div><b>攻撃</b> J　<b>ガード</b> K</div><div><b>スキル</b> 1 2 3 4　<b>拾得</b> E　<b>判定</b> H</div></div>
+      <div class="control-box"><div><b>移動</b> W A S D　<b>ダッシュ</b> A/D 2回</div><div><b>攻撃</b> J　<b>ガード</b> K</div><div><b>スキル</b> 1 2 3 4　<b>拾得</b> E　<b>判定</b> H</div></div>
     </div>`;
 }
 
