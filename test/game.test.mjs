@@ -520,7 +520,7 @@ test("防具の被弾フックが攻撃側をノックバックする", () => {
   assert.equal(saladin.velocity.x, 7);
 });
 
-test("空中被弾の水平移動速度は従来値の半分になる", () => {
+test("空中被弾は浮き時間を伸ばし、水平移動速度は従来値の半分になる", () => {
   const sim = setup();
   const [silver, saladin] = players(sim);
   silver.position.x = 500;
@@ -528,7 +528,31 @@ test("空中被弾の水平移動速度は従来値の半分になる", () => {
   silver.facing = 1;
   sim.startAttack(silver, { id: "air-test", motionId: "air-test", name: "air-test", damage: 0, range: 90, startupFrames: 0, activeFrames: 2, recoveryFrames: 1, effect: "air", guardPierce: true });
   sim.tick();
+  assert.equal(saladin.velocity.y, -15);
   assert.equal(saladin.velocity.x, 2.4);
+});
+
+test("空中ダメージ中は追撃ダメージが入り、ダウン中は通常攻撃が当たらない", () => {
+  const sim = setup();
+  const [silver, saladin] = players(sim);
+  silver.position.x = 500;
+  saladin.position.x = 560;
+  silver.facing = 1;
+
+  saladin.state = "AirDamaged";
+  saladin.position.y = 360;
+  sim.startAttack(silver, { id: "air-followup", motionId: "air-followup", name: "air-followup", damage: 5, range: 90, startupFrames: 0, activeFrames: 2, recoveryFrames: 1, effect: "hitstun", guardPierce: true });
+  sim.tick();
+  assert.equal(saladin.hp, 95);
+
+  waitUntilAttackEnds(sim, silver);
+  saladin.state = "Down";
+  saladin.stateTimer = 45;
+  saladin.position.y = 430;
+  saladin.velocity.y = 0;
+  sim.startAttack(silver, { id: "normal-vs-down", motionId: "normal-vs-down", name: "normal-vs-down", damage: 5, range: 90, startupFrames: 0, activeFrames: 2, recoveryFrames: 1, effect: "hitstun", guardPierce: true });
+  sim.tick();
+  assert.equal(saladin.hp, 95);
 });
 
 test("通常攻撃は大振りに見えるだけのフレーム数を持つ", async () => {

@@ -319,6 +319,7 @@ export class MatchSimulation {
     const nextHitFrame = Math.floor((active.spec.activeFrames * active.hitsDone) / hitCount);
     if (activeElapsed < nextHitFrame) return;
     if (defender.invulnerableUntilFrame >= this.frame || defender.state === "Dead") return;
+    if (defender.state === "Down" && !active.spec.hitsDowned) return;
     const defenderCollision = CHARACTER_REGISTRY[defender.characterId].definition.collision;
     const horizontalReach = attackRange(active.spec) + collisionHalfWidth(defender.characterId);
     if (Math.abs(attacker.position.x - defender.position.x) > horizontalReach) return;
@@ -350,7 +351,7 @@ export class MatchSimulation {
       } else if (spec.effect === "air" || spec.effect === "down") {
         defender.state = "AirDamaged";
         defender.stateTimer = 45;
-        defender.velocity.y = -7.5;
+        defender.velocity.y = activeLaunchVelocityY(spec);
         defender.velocity.x = attacker.facing * AIR_KNOCKBACK_SPEED;
       } else if (spec.effect === "stun") {
         defender.state = "Stunned";
@@ -590,6 +591,10 @@ function collisionHalfWidth(characterId: CharacterId): number {
 
 function attackRange(spec: AttackSpec): number {
   return spec.range * BATTLE_COLLISION_SCALE;
+}
+
+function activeLaunchVelocityY(spec: AttackSpec): number {
+  return spec.launchVelocityY ?? -15;
 }
 
 function attackTotalFrames(spec: AttackSpec): number {

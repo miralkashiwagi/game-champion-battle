@@ -28,6 +28,8 @@ export interface AttackSpec {
   movement?: number;
   invulnerable?: boolean;
   hitCount?: number;
+  hitsDowned?: boolean;
+  launchVelocityY?: number;
 }
 
 export interface ScriptCharacterVisualProfile {
