@@ -17,7 +17,7 @@ import {
   TICK_RATE,
   TICK_MS
 } from "../shared/constants.ts";
-import { COMMON_BAREHAND_COMBO, COMMON_GUARD_COUNTER } from "../characters/common.ts";
+import { COMMON_BAREHAND_COMBO, COMMON_GUARD_COUNTER, COMMON_WAKE_UP_ATTACK } from "../characters/common.ts";
 import { CHARACTER_REGISTRY } from "../characters/registry.ts";
 import { EQUIPMENT_REGISTRY } from "../equipment/registry.ts";
 import { attackForEquipment, CHARACTER_SPECS, createEquipment, type AttackSpec } from "../shared/characters.ts";
@@ -55,12 +55,17 @@ interface PlayerRuntime extends PlayerSnapshot {
   lastLeftTapFrame: number;
   lastRightTapFrame: number;
   dashDirection: MoveAxis;
+  wakeRollDirection: MoveAxis;
 }
 
 const HOLD_ATTACK_FRAMES = Math.round(TICK_RATE * 0.4);
 const COMBO_CONTINUE_WINDOW_FRAMES = Math.round(TICK_RATE * 0.45);
 const DASH_TAP_WINDOW_FRAMES = Math.round(TICK_RATE * 0.25);
 const DOWN_FRAMES = Math.round(TICK_RATE * 1);
+const STUN_FRAMES = Math.round(TICK_RATE * 2);
+const WAKE_ROLL_FRAMES = Math.round(TICK_RATE * 0.32);
+const GET_UP_FRAMES = Math.round(TICK_RATE * 0.3);
+const WAKE_ROLL_SPEED = 5.8;
 
 export class MatchSimulation {
   frame = 0;
@@ -102,7 +107,8 @@ export class MatchSimulation {
       comboContinueUntilFrame: Number.NEGATIVE_INFINITY,
       lastLeftTapFrame: Number.NEGATIVE_INFINITY,
       lastRightTapFrame: Number.NEGATIVE_INFINITY,
-      dashDirection: 0
+      dashDirection: 0,
+      wakeRollDirection: 0
     });
     this.push("joined", `${side} joined as ${CHARACTER_SPECS[characterId].ui.name}`);
     if (this.players.size === 2) {
@@ -179,23 +185,32 @@ export class MatchSimulation {
     if (player.state === "Dead") return;
     if (player.stateTimer > 0) player.stateTimer -= 1;
 
-    if (player.stateTimer <= 0 && ["Hitstun", "AttackRecovery", "GuardCounterWindow", "Stunned"].includes(player.state)) {
+    if (player.stateTimer <= 0 && ["Hitstun", "AttackRecovery", "GuardCounterWindow", "Stunned", "GetUp"].includes(player.state)) {
       player.state = "Idle";
       player.attackName = null;
       player.activeActionId = null;
       player.actionStartedFrame = null;
+      player.wakeRollDirection = 0;
     }
     if (player.stateTimer <= 0 && player.state === "KneelDown") {
       player.state = "Down";
       player.stateTimer = DOWN_FRAMES;
     }
-    if (player.stateTimer <= 0 && player.state === "Down") {
-      player.state = "Idle";
+    if (player.state === "Down") {
+      this.updateDownAction(player);
+    }
+    if (player.state === "WakeRoll") {
+      player.velocity.x = player.wakeRollDirection * WAKE_ROLL_SPEED;
+      if (player.stateTimer <= 0) {
+        player.state = "Idle";
+        player.velocity.x = 0;
+        player.wakeRollDirection = 0;
+      }
     }
 
     const canAct = ["Idle", "Move", "Dash", "Guard", "GuardCounterWindow"].includes(player.state);
     const headSkill = player.equipment.head ? attackForEquipment(player.equipment.head) : undefined;
-    if (headSkill?.usableWhileHit && input.skills.head && !player.previousInput.skills.head) {
+    if (headSkill?.usableWhileHit && !["Down", "WakeRoll", "GetUp"].includes(player.state) && input.skills.head && !player.previousInput.skills.head) {
       this.trySkill(player, opponent, "head", true);
     }
 
@@ -356,7 +371,10 @@ export class MatchSimulation {
         defender.velocity.x = attacker.facing * AIR_KNOCKBACK_SPEED;
       } else if (spec.effect === "stun") {
         defender.state = "Stunned";
-        defender.stateTimer = 180;
+        defender.stateTimer = STUN_FRAMES;
+      } else if (defender.state === "KneelDown") {
+        defender.state = "Down";
+        defender.stateTimer = DOWN_FRAMES;
       } else {
         defender.state = "Hitstun";
         defender.stateTimer = 12;
@@ -390,6 +408,7 @@ export class MatchSimulation {
   }
 
   private resolvePickup(player: PlayerRuntime): void {
+    if (!["Idle", "Move", "Dash", "Guard", "GuardCounterWindow"].includes(player.state)) return;
     if (!player.latestInput.pickup || !this.justPressed(player, "pickup")) return;
     const candidates = this.fieldItems
       .map((item, index) => ({ item, index, distance: Math.abs(item.position.x - player.position.x) }))
@@ -481,6 +500,59 @@ export class MatchSimulation {
     }
   }
 
+  private updateDownAction(player: PlayerRuntime): void {
+    const input = player.latestInput;
+    const previous = player.previousInput;
+    const leftPressed = input.left && !previous.left;
+    const rightPressed = input.right && !previous.right;
+    if (leftPressed || rightPressed) {
+      const direction = rightPressed && !leftPressed ? 1 : leftPressed && !rightPressed ? -1 : player.facing;
+      this.startWakeRoll(player, direction);
+      return;
+    }
+    if (input.attack && !previous.attack) {
+      this.startAttack(player, COMMON_WAKE_UP_ATTACK);
+      return;
+    }
+    if (this.justPressedAnyGetUpInput(player) || player.stateTimer <= 0) {
+      this.startGetUp(player);
+    }
+  }
+
+  private startWakeRoll(player: PlayerRuntime, direction: MoveAxis): void {
+    player.state = "WakeRoll";
+    player.stateTimer = WAKE_ROLL_FRAMES;
+    player.wakeRollDirection = direction;
+    player.velocity.x = direction * WAKE_ROLL_SPEED;
+    player.invulnerableUntilFrame = this.frame + WAKE_ROLL_FRAMES;
+    player.attackName = direction === player.facing ? "Forward Roll" : "Back Roll";
+    player.activeActionId = null;
+    player.actionStartedFrame = null;
+  }
+
+  private startGetUp(player: PlayerRuntime): void {
+    player.state = "GetUp";
+    player.stateTimer = GET_UP_FRAMES;
+    player.velocity.x = 0;
+    player.wakeRollDirection = 0;
+    player.invulnerableUntilFrame = this.frame + GET_UP_FRAMES;
+    player.attackName = "Get Up";
+    player.activeActionId = null;
+    player.actionStartedFrame = null;
+  }
+
+  private justPressedAnyGetUpInput(player: PlayerRuntime): boolean {
+    const input = player.latestInput;
+    const previous = player.previousInput;
+    return Boolean(
+      (input.up && !previous.up) ||
+      (input.down && !previous.down) ||
+      (input.guard && !previous.guard) ||
+      (input.pickup && !previous.pickup) ||
+      Object.entries(input.skills).some(([slot, pressed]) => pressed && !previous.skills[slot as EquipmentSlot])
+    );
+  }
+
   private isBlocking(defender: PlayerRuntime, attacker: PlayerRuntime): boolean {
     if (defender.state !== "Guard" && defender.state !== "GuardCounterWindow") return false;
     const incomingFromRight = attacker.position.x > defender.position.x;
@@ -494,6 +566,7 @@ export class MatchSimulation {
 
   private canAutoFaceOpponent(player: PlayerRuntime): boolean {
     if (player.activeAttack || player.state === "Guard") return false;
+    if (!["Idle", "Move", "Dash", "Jump", "GuardCounterWindow"].includes(player.state)) return false;
     return inputAxis(player.latestInput) === 0;
   }
 

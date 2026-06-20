@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { VRMLoaderPlugin } from "@pixiv/three-vrm";
-import { COMMON_BAREHAND_COMBO, COMMON_GUARD_COUNTER } from "../characters/common.ts";
+import { COMMON_BAREHAND_COMBO, COMMON_GUARD_COUNTER, COMMON_WAKE_UP_ATTACK } from "../characters/common.ts";
 import { CHARACTER_REGISTRY } from "../characters/registry.ts";
 import { EQUIPMENT_REGISTRY } from "../equipment/registry.ts";
 import { ScriptRigAdapter } from "./script-rig-adapter.js";
@@ -42,7 +42,7 @@ export const MODEL_CONTRACT = Object.freeze({
     "leftUpperLeg", "rightUpperLeg", "leftLowerLeg", "rightLowerLeg", "leftFoot", "rightFoot"
   ],
   attachmentSockets: ["headAccessory", "chestArmor", "back", "leftHandGrip", "rightHandGrip"],
-  stateMotions: ["idle", "move", "dash", "jump", "guard", "hit", "down", "dead", "pickup"]
+  stateMotions: ["idle", "move", "dash", "jump", "guard", "hit", "down", "getUp", "dead", "pickup"]
 });
 
 export class ProceduralCharacterView {
@@ -419,7 +419,7 @@ async function loadEquipmentModel(container, model, isCurrent) {
 
 function collectAttackSpecs() {
   const specs = new Map();
-  for (const attack of [...COMMON_BAREHAND_COMBO, COMMON_GUARD_COUNTER]) specs.set(attack.motionId, attack);
+  for (const attack of [...COMMON_BAREHAND_COMBO, COMMON_GUARD_COUNTER, COMMON_WAKE_UP_ATTACK]) specs.set(attack.motionId, attack);
   for (const registration of Object.values(EQUIPMENT_REGISTRY)) {
     const definition = registration.definition;
     for (const attack of [...(definition.combo || []), ...(definition.holdAttack ? [definition.holdAttack] : []), definition.skill]) specs.set(attack.motionId, attack);

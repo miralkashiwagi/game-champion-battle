@@ -10,7 +10,7 @@ export type HumanoidBoneName =
 export type AttachmentSocket = "headAccessory" | "chestArmor" | "back" | "leftHandGrip" | "rightHandGrip";
 type CharacterState =
   | "Idle" | "Move" | "Dash" | "Jump" | "AttackStartup" | "AttackActive" | "AttackRecovery" | "Guard"
-  | "GuardCounterWindow" | "Hitstun" | "KneelDown" | "AirDamaged" | "Down" | "Stunned" | "Dead";
+  | "GuardCounterWindow" | "Hitstun" | "KneelDown" | "AirDamaged" | "Down" | "WakeRoll" | "GetUp" | "Stunned" | "Dead";
 type Facing = -1 | 1;
 interface Vec2 { x: number; y: number; }
 

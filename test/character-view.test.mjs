@@ -132,6 +132,12 @@ test("スタンVRMAは星エフェクト付きのdizzyを再生する", () => {
   assert.equal(clips.stunned.loop, true);
 });
 
+test("WakeRollはroll-forward VRMAを再生する", () => {
+  const clips = getVrmaMotionSet().clips;
+  assert.equal(clips.rollForward.url, "/assets/motions/common/roll-forward.vrma");
+  assert.equal(clips.rollForward.loop, false);
+});
+
 test("VRMA inPlace再生では水平root motionだけ抑え高さの姿勢を残す", () => {
   const source = new THREE.AnimationClip("walk", 1, [
     new THREE.VectorKeyframeTrack("hips.position", [0, 1], [0, 0, 0, 3, -.4, 1]),

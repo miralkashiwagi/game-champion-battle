@@ -23,6 +23,8 @@ export type CharacterState =
   | "KneelDown"
   | "AirDamaged"
   | "Down"
+  | "WakeRoll"
+  | "GetUp"
   | "Stunned"
   | "Dead";
 

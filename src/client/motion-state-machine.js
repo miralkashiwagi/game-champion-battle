@@ -8,6 +8,8 @@ const STATE_TO_MOTION = {
   KneelDown: "kneel",
   AirDamaged: "air",
   Down: "down",
+  WakeRoll: "rollForward",
+  GetUp: "getUp",
   Stunned: "stunned",
   Dead: "dead"
 };
@@ -45,7 +47,9 @@ export class MotionStateMachine {
 
   selectState(snapshot) {
     if (snapshot.state === "Dead") return { name: "dead", priority: 10 };
+    if (snapshot.state === "GetUp") return { name: "getUp", priority: 9 };
     if (snapshot.state === "Down") return { name: "down", priority: 9 };
+    if (snapshot.state === "WakeRoll") return { name: "rollForward", priority: 9 };
     if (snapshot.state === "Stunned") return { name: "stunned", priority: 8 };
     if (["Hitstun", "KneelDown", "AirDamaged"].includes(snapshot.state)) {
       return { name: STATE_TO_MOTION[snapshot.state] || "hit", priority: 8 };

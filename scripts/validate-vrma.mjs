@@ -18,6 +18,7 @@ const assets = [
   "public/assets/motions/combat/slash-to-right.vrma",
   "public/assets/motions/combat/slash-up.vrma",
   "public/assets/motions/common/idle.vrma",
+  "public/assets/motions/common/roll-forward.vrma",
   "public/assets/motions/common/run.vrma",
   "public/assets/motions/common/turn.vrma",
   "public/assets/motions/common/walk.vrma",

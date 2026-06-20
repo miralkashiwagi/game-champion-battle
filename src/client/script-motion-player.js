@@ -1,6 +1,6 @@
 const STATE_MOTIONS = {
   Idle: "idle", Move: "move", Dash: "dash", Jump: "jump", Guard: "guard", GuardCounterWindow: "guard",
-  Hitstun: "hit", KneelDown: "kneel", AirDamaged: "air", Down: "down",
+  Hitstun: "hit", KneelDown: "kneel", AirDamaged: "air", Down: "down", WakeRoll: "down", GetUp: "idle",
   Stunned: "stunned", Dead: "dead"
 };
 
@@ -314,6 +314,11 @@ export class ScriptMotionPlayer {
     }
     if (id === "common_guard_counter") {
       applyGuardCounter(rigBones, phase, this.visualRoot);
+      this.applyAttackOverlay(phase);
+      return;
+    }
+    if (id === "common_wake_up_attack") {
+      applyPunch(rigBones, "barehand_1", phase, this.visualRoot);
       this.applyAttackOverlay(phase);
       return;
     }

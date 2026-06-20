@@ -1,4 +1,4 @@
-import { COMMON_BAREHAND_COMBO, COMMON_GUARD_COUNTER } from "../characters/common.ts";
+import { COMMON_BAREHAND_COMBO, COMMON_GUARD_COUNTER, COMMON_WAKE_UP_ATTACK } from "../characters/common.ts";
 import { EQUIPMENT_REGISTRY } from "../equipment/registry.ts";
 
 const M = "/assets/motions";
@@ -21,6 +21,7 @@ export const VRMA_ASSET_URLS = Object.freeze([
   `${M}/combat/slash-to-right.vrma`,
   `${M}/combat/slash-up.vrma`,
   `${M}/common/idle.vrma`,
+  `${M}/common/roll-forward.vrma`,
   `${M}/common/run.vrma`,
   `${M}/common/turn.vrma`,
   `${M}/common/walk.vrma`,
@@ -43,6 +44,7 @@ const stateClips = {
   jumpLoop: clip(`${M}/air/jump-loop.vrma`, { loop: true, rootMotion: "gameplay" }),
   jumpLand: clip(`${M}/air/jump-end.vrma`, { rootMotion: "gameplay", interruptibleAfter: .2 }),
   guard: clip(`${M}/combat/block.vrma`, { loop: true, fadeIn: .08, fadeOut: .12 }),
+  rollForward: clip(`${M}/common/roll-forward.vrma`, { fadeIn: .04, fadeOut: .08, interruptibleAfter: .32 }),
   hit: clip(`${M}/reaction/hit.vrma`, { interruptibleAfter: .28 }),
   kneel: clip(`${M}/reaction/crumple-stun.vrma`, { fadeIn: .06, interruptibleAfter: .55, playbackRate: 2 }),
   air: clip(`${M}/reaction/hit.vrma`, { interruptibleAfter: .28, fallbackReason: "No dedicated air-damaged VRMA exists; using hit reaction." }),
@@ -56,7 +58,8 @@ const motionIdClips = {
   barehand_1: clip(`${M}/combat/punch-01.vrma`, { interruptibleAfter: .38, playbackRate: 1.35 }),
   barehand_2: clip(`${M}/combat/punch-02.vrma`, { interruptibleAfter: .38, playbackRate: 1.3 }),
   barehand_3: clip(`${M}/combat/punch-03.vrma`, { interruptibleAfter: .42, playbackRate: 1.3 }),
-  common_guard_counter: clip(`${M}/combat/block.vrma`, { interruptibleAfter: .35 })
+  common_guard_counter: clip(`${M}/combat/block.vrma`, { interruptibleAfter: .35 }),
+  common_wake_up_attack: clip(`${M}/combat/punch-01.vrma`, { interruptibleAfter: .35, playbackRate: 1.35 })
 };
 
 const equipmentMotionClips = Object.freeze(Object.assign(
@@ -86,7 +89,7 @@ export function getRegisteredVrmaMotionIds() {
 }
 
 export function collectGameplayMotionIds() {
-  const ids = new Set([...COMMON_BAREHAND_COMBO.map((attack) => attack.motionId), COMMON_GUARD_COUNTER.motionId]);
+  const ids = new Set([...COMMON_BAREHAND_COMBO.map((attack) => attack.motionId), COMMON_GUARD_COUNTER.motionId, COMMON_WAKE_UP_ATTACK.motionId]);
   for (const registration of Object.values(EQUIPMENT_REGISTRY)) {
     const definition = registration.definition;
     for (const attack of [...(definition.combo || []), ...(definition.holdAttack ? [definition.holdAttack] : []), definition.skill]) {
