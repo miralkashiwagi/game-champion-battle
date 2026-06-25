@@ -4,4 +4,4 @@ import { motionController, vrmaMotions } from "./motions.ts";
 import { visual } from "./visual.ts";
 import type { EquipmentRegistration } from "../../../shared/character-types.ts";
 
-export const registration = { definition, behavior, visual, motionController, vrmaMotions } satisfies EquipmentRegistration<"sample_helmet">;
+export const registration = { definition, behavior, visual, motionController, vrmaMotions } satisfies EquipmentRegistration<"old_saladin_headgear">;

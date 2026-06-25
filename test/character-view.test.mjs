@@ -10,7 +10,7 @@ import { applyBattleCharacterRenderScale, BATTLE_CAMERA_TARGET_Y, BATTLE_CHARACT
 const equipmentSets = {
   silver_knight: { cloak: "silver_knight_cloak", head: "silver_knight_helmet", armor: "silver_knight_armor", weapon: "silver_knight_sword" },
   saladin: { cloak: "saladin_cloak", head: "saladin_headgear", armor: "saladin_armor", weapon: "saladin_twin_blades" },
-  syal: { cloak: "syal_cloak", head: "sample_helmet", armor: "syal_armor", weapon: "syal_twin_blades" }
+  syal: { cloak: "syal_cloak", head: "syal_headgear", armor: "syal_armor", weapon: "syal_twin_blades" }
 };
 const fullEquipment = (characterId) => Object.fromEntries(
   Object.entries(equipmentSets[characterId]).map(([slot, equipmentId]) => [slot, { id: `${equipmentId}-item`, equipmentId }])
@@ -199,7 +199,7 @@ test("GLB装備はスクリプトモデルをフォールバックとして保�
   const { EQUIPMENT_REGISTRY } = await import("../src/equipment/registry.ts");
   const THREE = await import("three");
   for (const [equipmentId, socket, url] of [
-    ["sample_helmet", "headAccessory", "/equipment/head/sample_helmet/model.glb"],
+    ["saladin_headgear", "headAccessory", "/equipment/head/saladin_headgear/model.glb"],
     ["sample_armor", "chestArmor", "/equipment/armor/sample_armor/model.glb"]
   ]) {
     const definition = EQUIPMENT_REGISTRY[equipmentId].visual.createAttachments({
