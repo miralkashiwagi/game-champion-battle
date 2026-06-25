@@ -111,6 +111,17 @@ test("装備のmotions.tsがVRMA clipを選びregistryが収集する", async ()
   assert.equal(clips.saladin_windwall.url, "/assets/motions/combat/headbutt.vrma");
 });
 
+test("Silver KnightのHeadbutt VRMAは技時間に合わせて再生する", async () => {
+  const { EQUIPMENT_REGISTRY } = await import("../src/equipment/registry.ts");
+  const { skill } = EQUIPMENT_REGISTRY.silver_knight_helmet.definition;
+  const clip = getVrmaMotionSet().clips.silver_headbutt;
+  const actionSeconds = (skill.startupFrames + skill.activeFrames + skill.recoveryFrames) / 60;
+
+  assert.equal(clip.url, "/assets/motions/combat/headbutt.vrma");
+  assert.equal(clip.interruptibleAfter, actionSeconds);
+  assert.ok(Math.abs((2.208 / clip.playbackRate) - actionSeconds) < .001);
+});
+
 test("ダウンVRMAはゲーム上のDown時間内に倒れ切る速度で再生する", () => {
   const clips = getVrmaMotionSet().clips;
   assert.equal(clips.down.url, "/assets/motions/reaction/knockdown.vrma");

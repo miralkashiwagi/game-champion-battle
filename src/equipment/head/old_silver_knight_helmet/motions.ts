@@ -1,8 +1,14 @@
 import { EQUIPMENT_VRMA_CLIPS } from "../../vrma.ts";
 import type { ScriptMotionController, VrmaMotionMap } from "../../../shared/character-types.ts";
 
+const HEADBUTT_ACTION_SECONDS = 28 / 60;
+const HEADBUTT_VRMA_SECONDS = 2.208;
+
 export const vrmaMotions = {
-  silver_headbutt: EQUIPMENT_VRMA_CLIPS.headbutt({ interruptibleAfter: .42 })
+  silver_headbutt: EQUIPMENT_VRMA_CLIPS.headbutt({
+    interruptibleAfter: HEADBUTT_ACTION_SECONDS,
+    playbackRate: HEADBUTT_VRMA_SECONDS / HEADBUTT_ACTION_SECONDS
+  })
 } satisfies VrmaMotionMap;
 
 export const motionController = {
