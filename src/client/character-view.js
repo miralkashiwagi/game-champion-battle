@@ -572,7 +572,7 @@ function createGuardShieldEffect() {
 function createDisabledStarsEffect() {
   const group = new THREE.Group();
   group.name = "disabled-stars-effect";
-  group.position.set(0, 2.55, 0);
+  group.position.set(0, 2.32, 0);
   group.visible = false;
   const starGeometry = createStarGeometry(.13, .055, 5);
   const starMaterial = new THREE.MeshBasicMaterial({

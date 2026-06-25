@@ -424,6 +424,7 @@ test("最後のスタン中だけ頭上の星エフェクトを表示する", ()
   assert.equal(view.disabledEffect.name, "disabled-stars-effect");
   assert.equal(view.disabledEffect.children.length, 3);
   assert.ok(view.disabledEffect.position.y > 2);
+  assert.ok(view.disabledEffect.position.y < 2.4);
 
   for (const state of ["Hitstun", "KneelDown", "AirDamaged", "Down"]) {
     view.update({ state, facing: -1, worldY: 0 }, 1 / 60, 1);
