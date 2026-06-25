@@ -3,7 +3,7 @@ import { EQUIPMENT_ID } from "./id.ts";
 import type { EquipmentAttachment, EquipmentModelVisual, EquipmentVisualFactory } from "../../../shared/character-types.ts";
 
 const MODEL_URL = `/equipment/head/${EQUIPMENT_ID}/model.glb`;
-const attachedModel = { url: MODEL_URL, position: [0, -.18, 0], scale: 4 } satisfies EquipmentModelVisual;
+const attachedModel = { url: MODEL_URL, position: [0, -.03, 0], scale: 3.5 } satisfies EquipmentModelVisual;
 const fieldModel = { url: MODEL_URL, position: [0, -.18, 0], scale: 4 } satisfies EquipmentModelVisual;
 
 export const visual = {
