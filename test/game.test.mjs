@@ -462,7 +462,7 @@ test("Silver Knightの頭突きは命中した相手を気絶させる", async (
   saladin.position.x = 560;
   silver.facing = 1;
 
-  sim.startAttack(silver, EQUIPMENT_REGISTRY.old_silver_knight_helmet.definition.skill);
+  sim.startAttack(silver, EQUIPMENT_REGISTRY.silver_knight_helmet.definition.skill);
   for (let i = 0; i < 24 && saladin.state !== "Stunned"; i++) sim.tick();
   assert.equal(silver.attackName, "Headbutt");
   assert.equal(saladin.state, "Stunned");
