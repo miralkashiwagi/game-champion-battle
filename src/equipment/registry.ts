@@ -2,8 +2,8 @@ import { registration as silverKnightCloak } from "./cloak/silver_knight_cloak/i
 import { registration as saladinCloak } from "./cloak/saladin_cloak/index.ts";
 import { registration as syalCloak } from "./cloak/syal_cloak/index.ts";
 import { registration as silverKnightHelmet } from "./head/silver_knight_helmet/index.ts";
+import { registration as oldSilverKnightHelmet } from "./head/old_silver_knight_helmet/index.ts";
 import { registration as saladinHeadgear } from "./head/saladin_headgear/index.ts";
-import { registration as oldSaladinHeadgear } from "./head/old_saladin_headgear/index.ts";
 import { registration as syalHeadgear } from "./head/syal_headgear/index.ts";
 import { registration as silverKnightArmor } from "./armor/silver_knight_armor/index.ts";
 import { registration as saladinArmor } from "./armor/saladin_armor/index.ts";
@@ -15,9 +15,9 @@ import { registration as syalTwinBlades } from "./weapon/syal_twin_blades/index.
 import type { EquipmentRegistration } from "../shared/character-types.ts";
 
 const registrations = {
-  silver_knight_cloak: silverKnightCloak, silver_knight_helmet: silverKnightHelmet,
+  silver_knight_cloak: silverKnightCloak, silver_knight_helmet: silverKnightHelmet, old_silver_knight_helmet: oldSilverKnightHelmet,
   silver_knight_armor: silverKnightArmor, silver_knight_sword: silverKnightSword,
-  saladin_cloak: saladinCloak, saladin_headgear: saladinHeadgear, old_saladin_headgear: oldSaladinHeadgear,
+  saladin_cloak: saladinCloak, saladin_headgear: saladinHeadgear,
   saladin_armor: saladinArmor, saladin_twin_blades: saladinTwinBlades,
   syal_cloak: syalCloak, syal_headgear: syalHeadgear,
   syal_armor: syalArmor, sample_armor: sampleArmor, syal_twin_blades: syalTwinBlades
