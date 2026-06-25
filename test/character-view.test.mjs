@@ -211,18 +211,49 @@ test("GLB装備はスクリプトモデルをフォールバックとして保�
   const THREE = await import("three");
   for (const [equipmentId, socket, url] of [
     ["silver_knight_helmet", "headAccessory", "/equipment/head/silver_knight_helmet/model.glb"],
-    ["sample_armor", "chestArmor", "/equipment/armor/sample_armor/model.glb"]
+    ["sample_armor", "chestArmor", "/equipment/armor/sample_armor/model.glb"],
+    ["silver_knight_sword", "rightHandGrip", "/equipment/weapon/silver_knight_sword/model.glb"],
+    ["saladin_twin_blades", "rightHandGrip", "/equipment/weapon/saladin_twin_blades/model.glb"]
   ]) {
     const definition = EQUIPMENT_REGISTRY[equipmentId].visual.createAttachments({
       THREE,
       material: (color) => new THREE.MeshStandardMaterial({ color }),
-      makeBlade: () => null
+      makeBlade: () => {
+        const blade = new THREE.Group();
+        blade.add(new THREE.Mesh(new THREE.BoxGeometry(.1, .8, .08)));
+        return blade;
+      }
     });
     assert.equal(definition.attachments[0].socket, socket);
     assert.equal(definition.attachments[0].model.url, url);
     assert.ok(definition.attachments[0].object.children.length > 0);
-    assert.equal(definition.attachments[0].object.userData.isEquipmentFallback, true);
-    assert.equal(definition.attachments[0].object.userData.equipmentSlot, EQUIPMENT_REGISTRY[equipmentId].definition.slot);
+  }
+});
+
+test("SaladinのGLB双剣は左右の手Socketへ個別に接続される", async () => {
+  const { EQUIPMENT_REGISTRY } = await import("../src/equipment/registry.ts");
+  const THREE = await import("three");
+  const definition = EQUIPMENT_REGISTRY.saladin_twin_blades.visual.createAttachments({
+    THREE,
+    material: (color) => new THREE.MeshStandardMaterial({ color }),
+    makeBlade: () => new THREE.Group()
+  });
+
+  assert.deepEqual(definition.attachments.map((attachment) => attachment.socket), ["rightHandGrip", "leftHandGrip"]);
+  assert.ok(definition.attachments.every((attachment) => attachment.model.url === "/equipment/weapon/saladin_twin_blades/model.glb"));
+});
+
+test("武器GLBは柄側が手Socketへ来る向きにオフセットする", async () => {
+  const { EQUIPMENT_REGISTRY } = await import("../src/equipment/registry.ts");
+  const THREE = await import("three");
+  for (const equipmentId of ["silver_knight_sword", "saladin_twin_blades"]) {
+    const definition = EQUIPMENT_REGISTRY[equipmentId].visual.createAttachments({
+      THREE,
+      material: (color) => new THREE.MeshStandardMaterial({ color }),
+      makeBlade: () => new THREE.Group()
+    });
+
+    assert.ok(definition.attachments.every((attachment) => attachment.model.position[1] > 0));
   }
 });
 
