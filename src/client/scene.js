@@ -8,7 +8,7 @@ const WORLD_SCALE = 78;
 const GROUND_Y = 430;
 export const BATTLE_CHARACTER_RENDER_SCALE = BATTLE_COLLISION_SCALE;
 export const BATTLE_CAMERA_TARGET_Y = 1.6;
-const LOCAL_PREDICTION_MAX_MS = 180;
+const LOCAL_PREDICTION_MAX_MS = 1100;
 
 const CAMERA_POSES = {
   title: { position: [0, 4.8, 10.8], target: [0, 1.4, 0] },

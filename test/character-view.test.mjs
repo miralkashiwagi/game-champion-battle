@@ -271,6 +271,27 @@ test("ローカルプレイヤーの移動描画だけ短時間予測する", ()
   assert.equal(scene.predictedLocalPlayerX(attacking), attacking.position.x);
 });
 
+test("ローカル移動描画はスナップショットが一時的に遅れても止まらない", () => {
+  const scene = Object.create(ChampionScene.prototype);
+  scene.localSide = "p1";
+  scene.localInputProvider = () => ({ left: false, right: true, down: false });
+  const player = {
+    side: "p1",
+    characterId: "silver_knight",
+    position: { x: 260, y: 430 },
+    velocity: { x: 4.1, y: 0 },
+    state: "Move",
+    activeActionId: null
+  };
+
+  scene.snapshotReceivedAt = performance.now() - 100;
+  const freshPredictedX = scene.predictedLocalPlayerX(player);
+  scene.snapshotReceivedAt = performance.now() - 1000;
+  const stalePredictedX = scene.predictedLocalPlayerX(player);
+
+  assert.ok(stalePredictedX > freshPredictedX + 120);
+});
+
 test("攻撃フェーズは互換値と拡張値を返す", () => {
   const spec = { startupFrames: 10, activeFrames: 8, recoveryFrames: 12 };
   const windup = getAttackPhase({ actionStartedFrame: 0, snapshotFrame: 5 }, spec);
