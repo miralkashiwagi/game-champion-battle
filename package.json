@@ -14,7 +14,9 @@
     "predeploy": "node scripts/build.mjs",
     "deploy": "wrangler deploy",
     "build": "node scripts/build.mjs",
+    "pretypecheck": "node scripts/generate-equipment-registry.mjs",
     "typecheck": "tsc --noEmit",
+    "pretest": "node scripts/generate-equipment-registry.mjs",
     "test": "node --test test/*.test.mjs"
   },
   "devDependencies": {

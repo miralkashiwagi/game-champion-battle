@@ -1,6 +1,7 @@
 import { build } from "esbuild";
 import { cp, mkdir, rm, stat } from "node:fs/promises";
 import { extname } from "node:path";
+import "./generate-equipment-registry.mjs";
 
 await mkdir("dist/client", { recursive: true });
 await rm("dist/client/src", { recursive: true, force: true });

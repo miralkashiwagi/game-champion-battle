@@ -1,7 +1,8 @@
 import { createFallbackEquipment } from "../../fallback-visual.ts";
+import { EQUIPMENT_ID } from "./id.ts";
 import type { EquipmentAttachment, EquipmentModelVisual, EquipmentVisualFactory } from "../../../shared/character-types.ts";
 
-const MODEL_URL = "/equipment/armor/sample_armor/model.glb";
+const MODEL_URL = `/equipment/armor/${EQUIPMENT_ID}/model.glb`;
 const attachedModel = { url: MODEL_URL, position: [0, 0, -.1], scale: 1.5 } satisfies EquipmentModelVisual;
 const fieldModel = { url: MODEL_URL, position: [0, -.04, .04] } satisfies EquipmentModelVisual;
 
