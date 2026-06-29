@@ -42,6 +42,9 @@ export function vrmaClip(
 export const EQUIPMENT_VRMA_CLIPS = {
   block: (options = {}) => vrmaClip(`${M}/combat/block.vrma`, options),
   headbutt: (options = {}) => vrmaClip(`${M}/combat/headbutt.vrma`, options),
+  tackle: (options = {}) => vrmaClip(`${M}/combat/tackle.vrma`, options),
+  thrust: (options = {}) => vrmaClip(`${M}/combat/thrust.vrma`, options),
+  threeSlash: (options = {}) => vrmaClip(`${M}/combat/three-slash.vrma`, options),
   slashToLeft: (options = {}) => vrmaClip(`${M}/combat/slash-to-left.vrma`, options),
   slashToRight: (options = {}) => vrmaClip(`${M}/combat/slash-to-right.vrma`, options),
   slashUp: (options = {}) => vrmaClip(`${M}/combat/slash-up.vrma`, options)

@@ -188,14 +188,14 @@ VRM 化しても戦闘判定は `simulation.ts` の 2D 座標と `definition.col
 
 ## VRMA モーション
 
-現在の正式VRMA素材は、リポジトリに存在する次の19本です。新しいファイルを前提にせず、足りない専用モーションは既存clipへの明示fallbackとして登録します。
+現在の正式VRMA素材は、リポジトリに存在する次の24本です。新しいファイルを前提にせず、足りない専用モーションは既存clipへの明示fallbackとして登録します。
 
 | 分類 | ファイル |
 | --- | --- |
-| common | `idle.vrma`, `walk.vrma`, `run.vrma`, `turn.vrma` |
+| common | `idle.vrma`, `walk.vrma`, `run.vrma`, `turn.vrma`, `roll-forward.vrma` |
 | air | `jump-start.vrma`, `jump-loop.vrma`, `jump-end.vrma` |
-| combat | `block.vrma`, `headbutt.vrma`, `punch-01.vrma`, `punch-02.vrma`, `punch-03.vrma`, `slash-to-left.vrma`, `slash-to-right.vrma`, `slash-up.vrma` |
-| reaction | `hit.vrma`, `crumple-stun.vrma`, `knockdown.vrma`, `get-up.vrma` |
+| combat | `block.vrma`, `headbutt.vrma`, `punch-01.vrma`, `punch-02.vrma`, `punch-03.vrma`, `slash-to-left.vrma`, `slash-to-right.vrma`, `slash-up.vrma`, `tackle.vrma`, `thrust.vrma`, `three-slash.vrma` |
+| reaction | `hit.vrma`, `crumple-stun.vrma`, `dizzy.vrma`, `knockdown.vrma`, `get-up.vrma` |
 
 VRMロード後の Silver Knight、Saladin、Syal は `VrmaCharacterMotionPlayer` を使います。VRMロード中またはロード失敗時だけ、各キャラクターのscript fallbackを表示します。
 
@@ -209,10 +209,12 @@ VRMロード後の Silver Knight、Saladin、Syal は `VrmaCharacterMotionPlayer
 | `guard`, `common_guard_counter`, windwall系 | `combat/block.vrma` |
 | `barehand_1..3` | `combat/punch-01..03.vrma` |
 | combo slash系 | `combat/slash-to-left.vrma`, `slash-to-right.vrma`, `slash-up.vrma` |
-| thrust / forward cut / body charge / lunar slash系 | 専用素材がないため既存slash clipへfallback |
+| `silver_body_charge` | `combat/tackle.vrma` |
+| `silver_thrust` | `combat/thrust.vrma` |
+| `silver_slash` | `combat/three-slash.vrma` |
 | `hit`, `kneel`, `stunned`, `down`, `dead` | `reaction/` 配下の既存clipへ対応 |
 
-共通状態VRMAを差し替える場合は、同じパスのファイルを置き換えるか `vrma-motion-registry.js` を更新してください。装備由来VRMAを差し替える場合は、各装備の `motions.ts` の `vrmaMotions` を更新してください。`walk-backward`、`strafe-*`、専用 `thrust`、専用 `death` は現状未配置のため、`scripts/validate-vrma.mjs` では警告として扱います。
+共通状態VRMAを差し替える場合は、同じパスのファイルを置き換えるか `vrma-motion-registry.js` を更新してください。装備由来VRMAを差し替える場合は、各装備の `motions.ts` の `vrmaMotions` を更新してください。`walk-backward`、`strafe-*`、専用 `death` は現状未配置のため、`scripts/validate-vrma.mjs` では警告として扱います。
 
 ```powershell
 node scripts/validate-vrma.mjs

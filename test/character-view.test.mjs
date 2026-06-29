@@ -97,13 +97,19 @@ test("Saladinを含むGameplay motionIdはVRMA registryへ登録されている"
     assert.ok(clips[motionId], `${motionId} should be registered`);
   }
   assert.match(clips.saladin_forward_cut.fallbackReason, /No dedicated thrust/);
-  assert.match(clips.silver_thrust.fallbackReason, /No dedicated thrust/);
+  assert.equal(clips.silver_thrust.fallbackReason, undefined);
 });
 
 test("装備のmotions.tsがVRMA clipを選びregistryが収集する", async () => {
   const { EQUIPMENT_REGISTRY } = await import("../src/equipment/registry.ts");
   const clips = getVrmaMotionSet().clips;
   assert.equal(clips.silver_thrust, EQUIPMENT_REGISTRY.silver_knight_sword.vrmaMotions.silver_thrust);
+  assert.equal(clips.silver_body_charge, EQUIPMENT_REGISTRY.silver_knight_cloak.vrmaMotions.silver_body_charge);
+  assert.equal(clips.silver_body_charge.url, "/assets/motions/combat/tackle.vrma");
+  assert.equal(clips.silver_thrust.url, "/assets/motions/combat/thrust.vrma");
+  assert.equal(clips.silver_slash.url, "/assets/motions/combat/three-slash.vrma");
+  assert.equal(clips.silver_slash.interruptibleAfter, .8);
+  assert.ok(Math.abs((3.792 / clips.silver_slash.playbackRate) - .8) < .001);
   assert.equal(clips.saladin_lunar_slash, EQUIPMENT_REGISTRY.saladin_twin_blades.vrmaMotions.saladin_lunar_slash);
   assert.equal(clips.syal_spin, EQUIPMENT_REGISTRY.syal_cloak.vrmaMotions.syal_spin);
   assert.equal(clips.silver_headbutt.url, "/assets/motions/combat/headbutt.vrma");

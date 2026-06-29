@@ -17,6 +17,9 @@ const assets = [
   "public/assets/motions/combat/slash-to-left.vrma",
   "public/assets/motions/combat/slash-to-right.vrma",
   "public/assets/motions/combat/slash-up.vrma",
+  "public/assets/motions/combat/tackle.vrma",
+  "public/assets/motions/combat/three-slash.vrma",
+  "public/assets/motions/combat/thrust.vrma",
   "public/assets/motions/common/idle.vrma",
   "public/assets/motions/common/roll-forward.vrma",
   "public/assets/motions/common/run.vrma",
@@ -33,7 +36,6 @@ const idealMissing = [
   "common/walk-backward.vrma",
   "common/strafe-left.vrma",
   "common/strafe-right.vrma",
-  "combat/thrust.vrma",
   "reaction/death.vrma"
 ];
 
