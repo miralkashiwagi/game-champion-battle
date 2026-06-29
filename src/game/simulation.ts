@@ -56,6 +56,7 @@ interface PlayerRuntime extends PlayerSnapshot {
   lastRightTapFrame: number;
   dashDirection: MoveAxis;
   wakeRollDirection: MoveAxis;
+  hitStopRemainingFrames: number;
 }
 
 const HOLD_ATTACK_FRAMES = Math.round(TICK_RATE * 0.4);
@@ -66,6 +67,10 @@ const STUN_FRAMES = Math.round(TICK_RATE * 2);
 const WAKE_ROLL_FRAMES = Math.round(TICK_RATE * 0.32);
 const GET_UP_FRAMES = Math.round(TICK_RATE * 0.3);
 const WAKE_ROLL_SPEED = 5.8;
+const DEFAULT_HIT_STOP_FRAMES = 4;
+const HEAVY_HIT_STOP_FRAMES = 6;
+const DEFAULT_BLOCK_STOP_FRAMES = 3;
+const MULTI_HIT_STOP_FRAMES = 3;
 
 export class MatchSimulation {
   frame = 0;
@@ -108,7 +113,8 @@ export class MatchSimulation {
       lastLeftTapFrame: Number.NEGATIVE_INFINITY,
       lastRightTapFrame: Number.NEGATIVE_INFINITY,
       dashDirection: 0,
-      wakeRollDirection: 0
+      wakeRollDirection: 0,
+      hitStopRemainingFrames: 0
     });
     this.push("joined", `${side} joined as ${CHARACTER_SPECS[characterId].ui.name}`);
     if (this.players.size === 2) {
@@ -180,9 +186,13 @@ export class MatchSimulation {
 
   private updatePlayer(player: PlayerRuntime, opponent: PlayerRuntime): void {
     const input = player.latestInput;
-    this.cooldownEquipment(player);
 
     if (player.state === "Dead") return;
+    if (player.hitStopRemainingFrames > 0) {
+      player.hitStopRemainingFrames -= 1;
+      return;
+    }
+    this.cooldownEquipment(player);
     if (player.stateTimer > 0) player.stateTimer -= 1;
 
     if (player.stateTimer <= 0 && ["Hitstun", "AttackRecovery", "GuardCounterWindow", "Stunned", "GetUp"].includes(player.state)) {
@@ -325,6 +335,7 @@ export class MatchSimulation {
   private resolveAttack(attacker: PlayerRuntime, defender: PlayerRuntime): void {
     const active = attacker.activeAttack;
     if (!active) return;
+    if (attacker.hitStopRemainingFrames > 0) return;
     const hitCount = Math.max(1, active.spec.hitCount ?? 1);
     if (active.hitsDone >= hitCount) return;
     const localTimer = attacker.attackTimer;
@@ -346,6 +357,7 @@ export class MatchSimulation {
     if (blocked) {
       defender.state = "GuardCounterWindow";
       defender.stateTimer = 30;
+      this.applyHitStop(attacker, defender, blockStopFrames(active.spec));
       this.push("blocked", `${defender.side} blocked ${active.spec.name}`);
       return;
     }
@@ -382,7 +394,24 @@ export class MatchSimulation {
       const armor = defender.equipment.armor;
       if (armor) EQUIPMENT_REGISTRY[armor.equipmentId].behavior.afterHitReceived?.({ attack: spec, attacker, defender, groundY: GROUND_Y });
     }
+    this.applyHitStop(attacker, defender, hitStopFrames(spec));
     this.push("hit", `${attacker.side} hit ${defender.side} with ${spec.name}`);
+  }
+
+  private applyHitStop(attacker: PlayerRuntime, defender: PlayerRuntime, frames: number): void {
+    if (frames <= 0) return;
+    attacker.hitStopRemainingFrames = Math.max(attacker.hitStopRemainingFrames, frames);
+    defender.hitStopRemainingFrames = Math.max(defender.hitStopRemainingFrames, frames);
+    this.extendFrameLocks(attacker, frames);
+    this.extendFrameLocks(defender, frames);
+  }
+
+  private extendFrameLocks(player: PlayerRuntime, frames: number): void {
+    if (player.invulnerableUntilFrame > this.frame) player.invulnerableUntilFrame += frames;
+    if (player.guardUntilFrame > this.frame) player.guardUntilFrame += frames;
+    if (Number.isFinite(player.comboContinueUntilFrame) && player.comboContinueUntilFrame > this.frame) {
+      player.comboContinueUntilFrame += frames;
+    }
   }
 
   purgeOrKill(player: PlayerRuntime): void {
@@ -642,6 +671,8 @@ export class MatchSimulation {
       attackName: player.attackName,
       activeActionId: player.activeActionId,
       actionStartedFrame: player.actionStartedFrame,
+      actionElapsedFrames: player.activeAttack ? player.attackTimer : null,
+      hitStopRemainingFrames: player.hitStopRemainingFrames,
       guardUntilFrame: player.guardUntilFrame
     };
   }
@@ -673,6 +704,18 @@ function activeLaunchVelocityY(spec: AttackSpec): number {
 
 function attackTotalFrames(spec: AttackSpec): number {
   return spec.startupFrames + spec.activeFrames + spec.recoveryFrames;
+}
+
+function hitStopFrames(spec: AttackSpec): number {
+  if (spec.hitStopFrames != null) return spec.hitStopFrames;
+  if (spec.damage <= 0) return 0;
+  if ((spec.hitCount ?? 1) > 1) return MULTI_HIT_STOP_FRAMES;
+  return ["kneel", "air", "down", "stun"].includes(spec.effect) ? HEAVY_HIT_STOP_FRAMES : DEFAULT_HIT_STOP_FRAMES;
+}
+
+function blockStopFrames(spec: AttackSpec): number {
+  if (spec.blockStopFrames != null) return spec.blockStopFrames;
+  return DEFAULT_BLOCK_STOP_FRAMES;
 }
 
 function inputAxis(input: InputState): MoveAxis {

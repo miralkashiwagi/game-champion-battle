@@ -30,6 +30,8 @@ export interface AttackSpec {
   hitCount?: number;
   hitsDowned?: boolean;
   launchVelocityY?: number;
+  hitStopFrames?: number;
+  blockStopFrames?: number;
 }
 
 export interface ScriptCharacterVisualProfile {

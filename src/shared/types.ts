@@ -110,6 +110,8 @@ export interface PlayerSnapshot {
   attackName: string | null;
   activeActionId: string | null;
   actionStartedFrame: number | null;
+  actionElapsedFrames?: number | null;
+  hitStopRemainingFrames?: number;
   guardUntilFrame: number;
 }
 

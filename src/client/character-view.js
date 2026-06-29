@@ -284,12 +284,13 @@ export class ProceduralCharacterView {
   }
 
   update(snapshot, delta, elapsed) {
+    const motionDelta = snapshot?.hitStopRemainingFrames > 0 ? 0 : delta;
     this.root.position.y = Math.max(0, snapshot?.worldY || 0);
     if (snapshot?.facing != null) {
       this.root.rotation.y = snapshot.facing === -1 ? -Math.PI / 2 : Math.PI / 2;
     }
-    this.motionPlayer.update(snapshot, delta, elapsed);
-    if (this.vrm && this.motionPlayer?.kind !== "vrma") this.vrm.update(delta);
+    this.motionPlayer.update(snapshot, motionDelta, elapsed);
+    if (this.vrm && this.motionPlayer?.kind !== "vrma") this.vrm.update(motionDelta);
     const attacking = snapshot?.state === "AttackActive" && snapshot?.activeActionId;
     const thrusting = /thrust|charge|headbutt|forward_cut|guard_counter|lunar/.test(snapshot?.activeActionId || "");
     this.hitboxView.visible = Boolean(this.collisionDebug && attacking);

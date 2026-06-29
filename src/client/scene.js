@@ -462,7 +462,7 @@ function worldX(x) {
 }
 
 function canPredictLocalMovement(player) {
-  return ["Idle", "Move", "Dash", "Jump"].includes(player.state) && !player.activeActionId;
+  return ["Idle", "Move", "Dash", "Jump"].includes(player.state) && !player.activeActionId && !(player.hitStopRemainingFrames > 0);
 }
 
 function hashId(value) {

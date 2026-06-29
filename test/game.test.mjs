@@ -106,6 +106,7 @@ test("ガード貫通なしはブロックされ、ガード貫通ありはヒ�
 
   p1.activeAttack = null;
   p1.attackTimer = 0;
+  for (let i = 0; i < 3; i++) sim.tick();
   sim.startAttack(p1, { id: "pierce", motionId: "pierce", name: "pierce", damage: 8, range: 90, startupFrames: 0, activeFrames: 5, recoveryFrames: 1, effect: "hitstun", guardPierce: true });
   sim.tick();
   assert.equal(p2.hp, 92);
@@ -468,11 +469,39 @@ test("Silver Knightの頭突きは命中した相手を気絶させる", async (
   assert.equal(saladin.state, "Stunned");
   assert.equal(saladin.stateTimer, TICK_RATE * 2);
 
-  for (let i = 0; i < TICK_RATE * 2 - 1; i++) sim.tick();
+  for (let i = 0; i < TICK_RATE * 2 + 5; i++) sim.tick();
   assert.equal(saladin.state, "Stunned");
 
   sim.tick();
   assert.equal(saladin.state, "Idle");
+});
+
+test("ヒットストップ中は攻撃者の攻撃時間と被撃者の硬直時間が進まない", () => {
+  const sim = setup();
+  const [silver, saladin] = players(sim);
+  silver.position.x = 500;
+  saladin.position.x = 560;
+  silver.facing = 1;
+
+  sim.startAttack(silver, { id: "stop-test", motionId: "stop-test", name: "Stop Test", damage: 5, range: 90, startupFrames: 0, activeFrames: 8, recoveryFrames: 8, effect: "hitstun", guardPierce: true });
+  sim.tick();
+
+  assert.equal(silver.hitStopRemainingFrames, 4);
+  assert.equal(saladin.hitStopRemainingFrames, 4);
+  assert.equal(silver.attackTimer, 1);
+  assert.equal(saladin.state, "Hitstun");
+  assert.equal(saladin.stateTimer, 12);
+
+  sim.tick();
+
+  assert.equal(silver.attackTimer, 1);
+  assert.equal(saladin.stateTimer, 12);
+  assert.equal(sim.snapshot().players.find((player) => player.side === "p1").actionElapsedFrames, 1);
+
+  for (let i = 0; i < 4; i++) sim.tick();
+
+  assert.equal(silver.attackTimer, 2);
+  assert.equal(saladin.stateTimer, 11);
 });
 
 test("Silver Knightの溜め突きは相手を膝つきからダウンへ移行させる", async () => {

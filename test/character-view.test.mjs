@@ -276,7 +276,7 @@ test("攻撃モーションはgameRootのサーバー座標を変更しない", 
 test("戦闘中のキャラクター描画はgameRoot側で全体拡大する", () => {
   const view = new ProceduralCharacterView("silver_knight");
   assert.equal(BATTLE_CHARACTER_RENDER_SCALE, 2);
-  assert.equal(BATTLE_CAMERA_TARGET_Y, 1.6);
+  assert.equal(BATTLE_CAMERA_TARGET_Y, 1.8);
   assert.equal(view.visualRoot.scale.x, view.profile.scale);
   applyBattleCharacterRenderScale(view.root);
   assert.equal(view.root.scale.x, 2);
@@ -311,6 +311,9 @@ test("ローカルプレイヤーの移動描画だけ短時間予測する", ()
 
   const attacking = { ...player, state: "AttackStartup", activeActionId: "silver_slash" };
   assert.equal(scene.predictedLocalPlayerX(attacking), attacking.position.x);
+
+  const hitStopped = { ...player, hitStopRemainingFrames: 2 };
+  assert.equal(scene.predictedLocalPlayerX(hitStopped), hitStopped.position.x);
 });
 
 test("ローカル移動描画はスナップショットが一時的に遅れても止まらない", () => {
@@ -354,6 +357,20 @@ test("攻撃フェーズは互換値と拡張値を返す", () => {
   assert.ok(recovery.pose < 1);
   assert.ok(recovery.strike < 1);
   assert.ok(recovery.recover > 0);
+
+  const stopped = getAttackPhase({ actionStartedFrame: 0, snapshotFrame: 24, actionElapsedFrames: 5 }, spec);
+  assert.deepEqual(stopped, windup);
+});
+
+test("ヒットストップ中はスクリプトモーション時間を進めない", () => {
+  const view = new ProceduralCharacterView("silver_knight");
+  view.motionPlayer.time = 0;
+  view.update({ state: "Move", facing: 1, worldY: 0, hitStopRemainingFrames: 2 }, 1 / 30, 0);
+  assert.equal(view.motionPlayer.time, 0);
+
+  view.update({ state: "Move", facing: 1, worldY: 0, hitStopRemainingFrames: 0 }, 1 / 30, 0);
+  assert.equal(view.motionPlayer.time, 1 / 30);
+  view.dispose();
 });
 
 test("状態遷移ブレンド中もgameRoot座標を変更しない", () => {

@@ -11,7 +11,7 @@ export class VrmaCharacterMotionPlayer {
 
   update(snapshot, delta, elapsed) {
     this.stateMachine.update(snapshot, elapsed);
-    this.vrmaPlayer.update(delta);
+    this.vrmaPlayer.update(snapshot?.hitStopRemainingFrames > 0 ? 0 : delta);
   }
 
   playPickup() {

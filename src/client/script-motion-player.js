@@ -408,7 +408,7 @@ const MOTION_BONES = [
 ];
 
 export function getAttackPhase(snapshot, spec) {
-  const elapsed = Math.max(0, (snapshot.snapshotFrame ?? snapshot.actionStartedFrame) - snapshot.actionStartedFrame);
+  const elapsed = Math.max(0, snapshot.actionElapsedFrames ?? ((snapshot.snapshotFrame ?? snapshot.actionStartedFrame) - snapshot.actionStartedFrame));
   const startup = Math.max(1, spec?.startupFrames || 1);
   const active = Math.max(1, spec?.activeFrames || 1);
   const recovery = Math.max(1, spec?.recoveryFrames || 1);
